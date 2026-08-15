@@ -1,17 +1,20 @@
 /**
  * Extracts Obsidian inline tags (#tagname) from markdown content.
- * Ignores markdown link anchors ([text](#anchor)) and code blocks.
+ * Ignores markdown link anchors ([text](#anchor)), wikilink bookmarks ([[File#bookmark]]), and code blocks.
  */
 export class InlineTagParser {
   /**
    * Extract all inline tags from markdown content.
-   * Regex matches #tagname but excludes markdown link anchors.
+   * Regex matches #tagname but excludes markdown link anchors and wikilink bookmarks.
    */
   extractTags(content: string): string[] {
     const tags: Set<string> = new Set();
 
+    // Remove wikilinks to avoid extracting tags from bookmarks like [[File#bookmark]]
+    let cleanContent = this.removeWikilinks(content);
+
     // Remove markdown links to avoid extracting tags from anchors like [text](#anchor)
-    let cleanContent = this.removeMarkdownLinks(content);
+    cleanContent = this.removeMarkdownLinks(cleanContent);
 
     // Remove code blocks to avoid extracting tags from code
     cleanContent = this.removeCodeBlocks(cleanContent);
@@ -43,6 +46,13 @@ export class InlineTagParser {
     cleaned = cleaned.replace(/`[^`]*`/g, '');
 
     return cleaned;
+  }
+
+  /**
+   * Remove wikilinks [[link]] and [[link#bookmark]] to avoid extracting bookmarks as tags.
+   */
+  private removeWikilinks(content: string): string {
+    return content.replace(/\[\[([^\]]*)\]\]/g, '');
   }
 
   /**

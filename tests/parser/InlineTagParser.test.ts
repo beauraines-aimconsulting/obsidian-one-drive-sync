@@ -118,6 +118,49 @@ Check out #important for details.
       });
     });
 
+    describe('ignoring wikilink bookmarks', () => {
+      it('should not extract tags from wikilink bookmarks', () => {
+        const content = '[[File#bookmark]] is a wikilink bookmark.';
+        const tags = parser.extractTags(content);
+
+        expect(tags).toEqual([]);
+      });
+
+      it('should extract tags but ignore wikilink bookmarks', () => {
+        const content = 'This is #realtag. See also [[File#bookmark]] for reference.';
+        const tags = parser.extractTags(content);
+
+        expect(tags).toEqual(['realtag']);
+        expect(tags).not.toContain('bookmark');
+      });
+
+      it('should handle multiple wikilink bookmarks', () => {
+        const content = `
+#important reference
+
+[[File1#section1]]
+[[File2#section2]]
+[[File3#intro]]
+
+More #content here.
+`;
+        const tags = parser.extractTags(content);
+
+        expect(tags).toContain('important');
+        expect(tags).toContain('content');
+        expect(tags).not.toContain('section1');
+        expect(tags).not.toContain('section2');
+        expect(tags).not.toContain('intro');
+      });
+
+      it('should ignore wikilinks without bookmarks', () => {
+        const content = 'Check out [[linked-file]] and #tag here.';
+        const tags = parser.extractTags(content);
+
+        expect(tags).toEqual(['tag']);
+      });
+    });
+
     describe('ignoring code blocks', () => {
       it('should not extract tags from triple backtick code blocks', () => {
         const content = `Here is some code:
@@ -355,7 +398,7 @@ Check the code and use \`#nothere\` pattern. Final tags: #important #urgent
 code here
 \`\`\`
 After`;
-      const result = (parser as InlineTagParser).removeCodeBlocks(content);
+      const result = (parser as any).removeCodeBlocks(content);
 
       expect(result).not.toContain('code here');
       expect(result).toContain('Before');
