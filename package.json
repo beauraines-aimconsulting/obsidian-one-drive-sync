@@ -1,0 +1,54 @@
+{
+  "name": "obsidian-one-drive-sync",
+  "version": "0.1.0",
+  "description": "Selectively publish Obsidian vault content to Microsoft 365 Copilot-accessible knowledge repository",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "coverage": "vitest --coverage",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beauraines-aimconsulting/obsidian-one-drive-sync.git"
+  },
+  "keywords": [
+    "obsidian",
+    "onedrive",
+    "sync",
+    "copilot",
+    "knowledge"
+  ],
+  "author": "Beau Raines",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/beauraines-aimconsulting/obsidian-one-drive-sync/issues"
+  },
+  "homepage": "https://github.com/beauraines-aimconsulting/obsidian-one-drive-sync#readme",
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "dotenv": "^16.3.1",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^8.54.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vitest/ui": "^1.0.4",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  }
+}
