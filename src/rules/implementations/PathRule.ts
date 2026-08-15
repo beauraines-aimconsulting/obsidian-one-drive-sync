@@ -2,11 +2,18 @@ import { Rule } from '../Rule.js';
 import type { Frontmatter, EvaluationResult } from '../Rule.js';
 
 function globToRegex(glob: string): RegExp {
-  let regex = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\\\*/g, '.*')
-    .replace(/\\\?/g, '.');
-  regex = regex.replace(/\.\.\.\*/g, '.*');
+  // Handle ** first - it should match everything including /
+  let regex = glob.replace(/\*\*/g, '___DOUBLE_STAR___');
+
+  // Escape special regex characters except glob patterns
+  regex = regex
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+    .replace(/\\\*/g, '[^/]*') // * -> [^/]* (match anything except /)
+    .replace(/\\\?/g, '[^/]'); // ? -> [^/] (match any char except /)
+
+  // Handle ** - it should match everything including /
+  regex = regex.replace(/___DOUBLE_STAR___/g, '.*');
+
   return new RegExp(`^${regex}$`);
 }
 

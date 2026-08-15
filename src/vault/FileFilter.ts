@@ -6,14 +6,17 @@ import type { FilterOptions, FileFilterResult } from './types.js';
  * Supports: *, **, ?, [abc], etc.
  */
 function globToRegex(glob: string): RegExp {
-  // Escape special regex characters except glob patterns
-  let regex = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-    .replace(/\\\*/g, '.*') // * -> .*
-    .replace(/\\\?/g, '.'); // ? -> .
+  // Handle ** first - it should match everything including /
+  let regex = glob.replace(/\*\*/g, '___DOUBLE_STAR___');
 
-  // Handle ** separately - it should match everything
-  regex = regex.replace(/\.\.\.\*/g, '.*');
+  // Escape special regex characters except glob patterns
+  regex = regex
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+    .replace(/\\\*/g, '[^/]*') // * -> [^/]* (match anything except /)
+    .replace(/\\\?/g, '[^/]'); // ? -> [^/] (match any char except /)
+
+  // Handle ** - it should match everything including /
+  regex = regex.replace(/___DOUBLE_STAR___/g, '.*');
 
   return new RegExp(`^${regex}$`);
 }
@@ -75,19 +78,19 @@ export class FileFilter {
     // Normalize path separators
     const normalizedPath = filepath.replace(/\\/g, '/');
 
+    // Check ignore patterns first
+    if (this.matchesIgnorePattern(normalizedPath)) {
+      return {
+        allowed: false,
+        reason: 'File matches ignore pattern',
+      };
+    }
+
     // Check extension
     if (!this.hasAllowedExtension(normalizedPath)) {
       return {
         allowed: false,
         reason: `File extension not in allowed list: ${this.allowedExtensions.join(', ')}`,
-      };
-    }
-
-    // Check ignore patterns
-    if (this.matchesIgnorePattern(normalizedPath)) {
-      return {
-        allowed: false,
-        reason: 'File matches ignore pattern',
       };
     }
 
