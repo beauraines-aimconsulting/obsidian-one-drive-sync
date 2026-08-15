@@ -1,0 +1,113 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+import type { AppConfig } from './types.js';
+
+const DEFAULT_CONFIG: Partial<AppConfig> = {
+  logLevel: 'info',
+  debounceDelay: 300,
+  rulesConfig: './config/rules.json',
+  ignorePatterns: ['.git/**', '.obsidian/**', 'node_modules/**', '.DS_Store'],
+};
+
+export class ConfigManager {
+  private config: AppConfig | null = null;
+
+  async load(): Promise<AppConfig> {
+    if (this.config) {
+      return this.config;
+    }
+
+    // Load environment variables from .env file
+    const envPath = path.join(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+    }
+
+    // Load .env.local if it exists (overrides .env)
+    const envLocalPath = path.join(process.cwd(), '.env.local');
+    if (fs.existsSync(envLocalPath)) {
+      dotenv.config({ path: envLocalPath });
+    }
+
+    // Try to load from config file
+    let configFromFile: Partial<AppConfig> = {};
+    const rulesConfigPath = process.env.RULES_CONFIG || DEFAULT_CONFIG.rulesConfig;
+    if (rulesConfigPath && fs.existsSync(rulesConfigPath)) {
+      try {
+        const content = fs.readFileSync(rulesConfigPath, 'utf-8');
+        const parsed = JSON.parse(content);
+        configFromFile = parsed.config || {};
+      } catch (err) {
+        console.warn(`Failed to load config from ${rulesConfigPath}:`, err);
+      }
+    }
+
+    // Merge sources: defaults < file < env vars
+    const debounceDelayValue =
+      process.env.DEBOUNCE_DELAY ||
+      (configFromFile.debounceDelay !== undefined
+        ? String(configFromFile.debounceDelay)
+        : undefined) ||
+      String(DEFAULT_CONFIG.debounceDelay);
+
+    const merged = {
+      ...DEFAULT_CONFIG,
+      ...configFromFile,
+      vaultPath:
+        process.env.VAULT_PATH ||
+        configFromFile.vaultPath ||
+        DEFAULT_CONFIG.vaultPath,
+      outputPath:
+        process.env.OUTPUT_PATH ||
+        configFromFile.outputPath ||
+        DEFAULT_CONFIG.outputPath,
+      rulesConfig:
+        process.env.RULES_CONFIG ||
+        configFromFile.rulesConfig ||
+        DEFAULT_CONFIG.rulesConfig,
+      logLevel: (process.env.LOG_LEVEL ||
+        configFromFile.logLevel ||
+        DEFAULT_CONFIG.logLevel) as 'debug' | 'info' | 'warn' | 'error',
+      debounceDelay: parseInt(debounceDelayValue, 10),
+    };
+
+    // Validate required fields
+    if (!merged.vaultPath) {
+      throw new Error('VAULT_PATH is required (set via env var or config file)');
+    }
+    if (!merged.outputPath) {
+      throw new Error('OUTPUT_PATH is required (set via env var or config file)');
+    }
+
+    // Parse ignore patterns if provided as env string
+    if (process.env.IGNORE_PATTERNS) {
+      merged.ignorePatterns = process.env.IGNORE_PATTERNS.split(',').map((p) =>
+        p.trim()
+      );
+    }
+
+    this.config = merged as AppConfig;
+    return this.config;
+  }
+
+  getConfig(): AppConfig {
+    if (!this.config) {
+      throw new Error(
+        'Config not loaded. Call load() first or use loadAndGet()'
+      );
+    }
+    return this.config;
+  }
+
+  async loadAndGet(): Promise<AppConfig> {
+    return this.load();
+  }
+
+  reload(): Promise<AppConfig> {
+    this.config = null;
+    return this.load();
+  }
+}
+
+export const configManager = new ConfigManager();
