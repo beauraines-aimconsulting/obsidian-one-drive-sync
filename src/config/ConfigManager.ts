@@ -1,7 +1,15 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import type { AppConfig } from './types.js';
+
+function expandTilde(filepath: string): string {
+  if (filepath.startsWith('~/')) {
+    return path.join(os.homedir(), filepath.slice(2));
+  }
+  return filepath;
+}
 
 const DEFAULT_CONFIG: Partial<AppConfig> = {
   logLevel: 'info',
@@ -79,6 +87,10 @@ export class ConfigManager {
     if (!merged.outputPath) {
       throw new Error('OUTPUT_PATH is required (set via env var or config file)');
     }
+
+    // Expand ~ in paths
+    merged.vaultPath = expandTilde(merged.vaultPath);
+    merged.outputPath = expandTilde(merged.outputPath);
 
     // Parse ignore patterns if provided as env string
     if (process.env.IGNORE_PATTERNS) {

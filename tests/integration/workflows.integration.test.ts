@@ -39,8 +39,8 @@ class InlineTagRule extends Rule {
     _filepath: string,
     frontmatter: Record<string, unknown>
   ): { passed: boolean; reason: string } {
-    const allTags = Array.isArray(frontmatter.allTags)
-      ? frontmatter.allTags.filter((tag): tag is string => typeof tag === 'string')
+    const allTags = Array.isArray(frontmatter.tags)
+      ? frontmatter.tags.filter((tag): tag is string => typeof tag === 'string')
       : [];
 
     if (allTags.includes(this.requiredTag)) {
