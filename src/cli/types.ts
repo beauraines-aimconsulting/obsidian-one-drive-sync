@@ -3,6 +3,9 @@ export interface CliOptions {
   dryRun: boolean;
   help: boolean;
   probe: boolean;
+  logout: boolean;
+  sync: boolean;
+  forceSync: boolean;
 }
 
 export interface CliRunResult {
