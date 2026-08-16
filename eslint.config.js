@@ -22,6 +22,7 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         fetch: 'readonly',
+        Buffer: 'readonly',
       },
     },
     plugins: {
