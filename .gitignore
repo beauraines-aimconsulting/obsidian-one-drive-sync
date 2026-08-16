@@ -13,3 +13,6 @@ dist/
 coverage/
 .nyc_output/
 vitest.config.ts.snap
+
+# User config (contains local paths)
+config.json
