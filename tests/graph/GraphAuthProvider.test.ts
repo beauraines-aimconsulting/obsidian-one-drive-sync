@@ -13,6 +13,14 @@ describe('GraphAuthProvider', () => {
     expect(provider).toBeDefined();
   });
 
+  it('should create provider with Azure CLI credentials', () => {
+    const provider = GraphAuthProvider.withAzureCliCredentials('my-tenant');
+    const config = provider.getConfig();
+
+    expect(config.clientId).toBe('04b07795-8dde-4d83-8aab-9804e8457b65');
+    expect(config.tenantId).toBe('my-tenant');
+  });
+
   it('should return required scopes', () => {
     const provider = new GraphAuthProvider(testConfig);
     const scopes = provider.getRequiredScopes();

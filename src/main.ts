@@ -35,22 +35,28 @@ async function walkMarkdown(dir: string): Promise<string[]> {
 
 async function runProbe(config: import('./config/types.js').AppConfig): Promise<number> {
   const clientId = config.clientId ?? process.env.GRAPH_CLIENT_ID;
-  const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID;
+  const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID ?? 'common';
 
-  if (!clientId || !tenantId) {
-    console.error('❌ Graph API probe requires clientId and tenantId.');
-    console.error('   Set GRAPH_CLIENT_ID and GRAPH_TENANT_ID environment variables,');
-    console.error('   or add "clientId" and "tenantId" to your config.json.');
-    return 1;
+  let authProvider: GraphAuthProvider;
+  let quickTest = false;
+
+  if (!clientId) {
+    // Use Azure CLI well-known client ID for quick connectivity test
+    console.log('🔍 Graph API Quick Connectivity Test (Azure CLI credentials)');
+    console.log('   No custom app registration — using Azure CLI client ID');
+    console.log('   Note: Files.ReadWrite may not be available without a custom app registration\n');
+    authProvider = GraphAuthProvider.withAzureCliCredentials(tenantId);
+    quickTest = true;
+  } else {
+    console.log('🔍 Graph API Connectivity Probe');
+    authProvider = new GraphAuthProvider({ clientId, tenantId });
   }
 
-  console.log('🔍 Graph API Connectivity Probe');
   console.log('────────────────────────────────────────');
-  console.log(`  Client ID: ${clientId}`);
+  console.log(`  Client ID: ${quickTest ? '(Azure CLI)' : clientId}`);
   console.log(`  Tenant ID: ${tenantId}`);
   console.log('');
 
-  const authProvider = new GraphAuthProvider({ clientId, tenantId });
   const probe = new GraphProbe(authProvider);
 
   const report = await probe.runAll((message) => {

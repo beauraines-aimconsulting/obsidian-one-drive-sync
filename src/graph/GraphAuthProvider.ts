@@ -13,6 +13,9 @@ import type { GraphAuthConfig, TokenResult } from './types.js';
 
 const DEFAULT_SCOPES = ['User.Read', 'Files.ReadWrite'];
 
+// Azure CLI well-known client ID — works in most tenants without app registration
+const AZURE_CLI_CLIENT_ID = '04b07795-8dde-4d83-8aab-9804e8457b65';
+
 export class GraphAuthProvider {
   private msalClient: PublicClientApplication;
   private config: GraphAuthConfig;
@@ -29,6 +32,19 @@ export class GraphAuthProvider {
     };
 
     this.msalClient = new PublicClientApplication(msalConfig);
+  }
+
+  /**
+   * Create a provider using the Azure CLI well-known client ID.
+   * Useful for quick connectivity tests without a custom app registration.
+   * Note: Only User.Read is likely pre-consented; Files.ReadWrite may require
+   * a custom app registration with admin consent.
+   */
+  static withAzureCliCredentials(tenantId: string): GraphAuthProvider {
+    return new GraphAuthProvider({
+      clientId: AZURE_CLI_CLIENT_ID,
+      tenantId,
+    });
   }
 
   /**
