@@ -105,6 +105,15 @@
 - src/parser/FrontmatterParser.ts
 - src/parser/types.ts
 
+### Inline Tag Parser
+1. Create InlineTagParser to extract Obsidian inline tags from markdown content
+2. Support tags like `#Work` and `#ms-rte` even when no frontmatter exists
+3. Ignore markdown link anchors and wikilink bookmarks such as `[[File#bookmark]]`
+4. Ignore code blocks and inline code
+
+**Key Files:**
+- src/parser/InlineTagParser.ts
+
 ### Publication Eligibility Service
 1. Create PublicationService that orchestrates the eligibility check
 2. Accept file path and content
@@ -234,6 +243,12 @@ DEBOUNCE_DELAY=300
 - [ ] CLI runs and logs eligibility decisions to console
 - [ ] README documents how to configure and run
 
+## Current Status
+
+- **Completed and merged:** Project Scaffolding, Configuration System, Logging & Utilities, Frontmatter Parser, File Filter, Publication Rules, Rule Engine, Inline Tag Parser, Vault Watcher, Vault Service, Publication Service, CLI Entry Point
+- **Remaining Phase 1 work:** Unit Tests, Integration Tests, Documentation
+- **Current repository state:** main branch is up to date with merged PRs through #36
+
 ---
 
 ## GitHub Workflow
@@ -265,7 +280,7 @@ DEBOUNCE_DELAY=300
 1. Create feature branch: `feature/component-name` or `feature/gh-#issue-number`
 2. Make commits with detailed messages
 3. Open Pull Request with:
-   - Reference to issue (#123)
+   - Reference to issue (#123) and include `Resolves #123` in the PR body
    - Summary of changes
    - Testing instructions
    - Any blockers or questions
