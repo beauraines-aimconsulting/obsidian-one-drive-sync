@@ -90,4 +90,35 @@ describe('EventEmitter', () => {
   it('should handle emit with no listeners', async () => {
     await expect(emitter.emit('nonexistent', { data: 'test' })).resolves.toBeUndefined();
   });
+
+  it('should remove only listeners for the requested event', async () => {
+    const handler1 = vi.fn();
+    const handler2 = vi.fn();
+    emitter.on('test1', handler1);
+    emitter.on('test2', handler2);
+
+    emitter.removeAllListeners('test1');
+
+    expect(emitter.listenerCount('test1')).toBe(0);
+    expect(emitter.listenerCount('test2')).toBe(1);
+
+    await emitter.emit('test1', { data: 'test' });
+    await emitter.emit('test2', { data: 'test' });
+
+    expect(handler1).not.toHaveBeenCalled();
+    expect(handler2).toHaveBeenCalled();
+  });
+
+  it('should await async listeners before resolving emit', async () => {
+    const calls: string[] = [];
+    emitter.on('test', async () => {
+      calls.push('listener-start');
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      calls.push('listener-end');
+    });
+
+    await emitter.emit('test', { data: 'test' });
+
+    expect(calls).toEqual(['listener-start', 'listener-end']);
+  });
 });
