@@ -6,6 +6,7 @@ import { ConfigManager } from '../../src/config/ConfigManager.js';
 describe('ConfigManager', () => {
   let configManager: ConfigManager;
   const tempDir = path.join(process.cwd(), '.test-config');
+  const rulesConfigPath = path.join(tempDir, 'rules.json');
 
   beforeEach(() => {
     configManager = new ConfigManager();
@@ -16,6 +17,9 @@ describe('ConfigManager', () => {
     delete process.env.LOG_LEVEL;
     delete process.env.DEBOUNCE_DELAY;
     delete process.env.IGNORE_PATTERNS;
+    delete process.env.RULES_CONFIG;
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   afterEach(() => {
@@ -115,5 +119,76 @@ describe('ConfigManager', () => {
     const config = await configManager.loadAndGet();
 
     expect(config.vaultPath).toBe('/test/vault');
+  });
+
+  it('should load config values from a rules config file', async () => {
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(
+      rulesConfigPath,
+      JSON.stringify({
+        config: {
+          vaultPath: '/file/vault',
+          outputPath: '/file/output',
+          logLevel: 'warn',
+          debounceDelay: 750,
+          ignorePatterns: ['temp/**', '.cache/**'],
+        },
+      })
+    );
+
+    process.env.RULES_CONFIG = rulesConfigPath;
+
+    const config = await configManager.load();
+
+    expect(config.vaultPath).toBe('/file/vault');
+    expect(config.outputPath).toBe('/file/output');
+    expect(config.logLevel).toBe('warn');
+    expect(config.debounceDelay).toBe(750);
+    expect(config.ignorePatterns).toEqual(['temp/**', '.cache/**']);
+  });
+
+  it('should let env vars override config file values', async () => {
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(
+      rulesConfigPath,
+      JSON.stringify({
+        config: {
+          vaultPath: '/file/vault',
+          outputPath: '/file/output',
+          logLevel: 'warn',
+          debounceDelay: 750,
+        },
+      })
+    );
+
+    process.env.RULES_CONFIG = rulesConfigPath;
+    process.env.VAULT_PATH = '/env/vault';
+    process.env.OUTPUT_PATH = '/env/output';
+    process.env.LOG_LEVEL = 'error';
+    process.env.DEBOUNCE_DELAY = '125';
+
+    const config = await configManager.load();
+
+    expect(config.vaultPath).toBe('/env/vault');
+    expect(config.outputPath).toBe('/env/output');
+    expect(config.logLevel).toBe('error');
+    expect(config.debounceDelay).toBe(125);
+  });
+
+  it('should reload config after env changes', async () => {
+    process.env.VAULT_PATH = '/test/vault1';
+    process.env.OUTPUT_PATH = '/test/output1';
+
+    const config1 = await configManager.load();
+    expect(config1.vaultPath).toBe('/test/vault1');
+
+    process.env.VAULT_PATH = '/test/vault2';
+    process.env.OUTPUT_PATH = '/test/output2';
+
+    const config2 = await configManager.reload();
+
+    expect(config2.vaultPath).toBe('/test/vault2');
+    expect(config2.outputPath).toBe('/test/output2');
+    expect(config2).not.toBe(config1);
   });
 });
