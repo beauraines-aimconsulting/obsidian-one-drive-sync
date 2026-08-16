@@ -36,25 +36,40 @@ async function main(): Promise<number> {
     console.log(usage());
     return 0;
   }
-  if (options.configPath) process.env.RULES_CONFIG = path.resolve(options.configPath);
+  const configPath = options.configPath ? path.resolve(options.configPath) : undefined;
+  if (configPath) process.env.RULES_CONFIG = configPath;
   const config = await new ConfigManager().load();
   if (!fs.existsSync(config.vaultPath)) throw new Error(`Invalid vault path: ${config.vaultPath}`);
   const publicationService = new PublicationService({ logLevel: config.logLevel });
+
+  // Load rules from config file
+  const rulesPath = configPath ?? config.rulesConfig;
+  if (rulesPath && fs.existsSync(rulesPath)) {
+    await publicationService.reloadRules(rulesPath);
+  } else if (configPath) {
+    throw new Error(`Config file not found: ${configPath}`);
+  } else {
+    console.warn('⚠️  No rules config found — all files will pass (no rules configured)');
+  }
+
   const watcher = new VaultWatcher({ debounceDelay: config.debounceDelay, ignorePatterns: config.ignorePatterns });
   const evaluate = async (filepath: string) => {
-    const result = await publicationService.evaluateFile(filepath, fs.readFileSync(filepath, 'utf-8'));
-    console.log(`${result.eligible ? '✅' : '⛔'} ${path.relative(config.vaultPath, filepath)} - ${result.reason}`);
+    const relativePath = path.relative(config.vaultPath, filepath);
+    const result = await publicationService.evaluateFile(relativePath, fs.readFileSync(filepath, 'utf-8'));
+    console.log(`${result.eligible ? '✅' : '⛔'} ${relativePath} - ${result.reason}`);
   };
-  console.log(`Monitoring vault: ${config.vaultPath}`);
+  console.log(`📂 Monitoring vault: ${config.vaultPath}`);
   if (options.dryRun) {
-    for (const file of await walkMarkdown(config.vaultPath)) await evaluate(file);
+    const files = await walkMarkdown(config.vaultPath);
+    console.log(`Scanning ${files.length} markdown files...\n`);
+    for (const file of files) await evaluate(file);
     return 0;
   }
   watcher.on('add', (e) => void evaluate(e.filepath));
   watcher.on('modify', (e) => void evaluate(e.filepath));
   await watcher.watch(config.vaultPath);
   const shutdown = async (signal: string) => {
-    console.log(`Shutting down on ${signal}`);
+    console.log(`\nShutting down on ${signal}`);
     await watcher.unwatch().catch(() => undefined);
     process.exit(0);
   };

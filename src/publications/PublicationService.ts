@@ -3,6 +3,7 @@ import { Logger } from '../utils/Logger.js';
 import { FrontmatterParser } from '../parser/FrontmatterParser.js';
 import { InlineTagParser } from '../parser/InlineTagParser.js';
 import { RuleEngine } from '../rules/RuleEngine.js';
+import { RuleLoader } from '../rules/RuleLoader.js';
 import { ConfigManager } from '../config/ConfigManager.js';
 import type { Rule } from '../rules/types.js';
 import type { Frontmatter } from '../parser/types.js';
@@ -103,7 +104,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     // Add combined tags to frontmatter for rule evaluation
     const evaluationFrontmatter = {
       ...frontmatter,
-      allTags,
+      tags: allTags,
     };
 
     // Evaluate using rule engine
@@ -137,23 +138,29 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   }
 
   /**
-   * Reload publication rules from configuration.
+   * Reload publication rules from configuration file.
    */
-  async reloadRules(): Promise<void> {
+  async reloadRules(configPath?: string): Promise<void> {
     this.logger.info('Reloading publication rules');
 
     try {
-      const appConfig = await this.configManager.load();
+      let rulesPath = configPath;
 
-      // For now, clear existing rules to simulate reload
-      this.ruleEngine.clearRules();
+      if (!rulesPath) {
+        const appConfig = await this.configManager.load();
+        rulesPath = appConfig.rulesConfig;
+      }
 
-      // Rules would be loaded from ConfigManager/rulesConfig in a real implementation
-      // This is a placeholder that shows the structure
+      if (!rulesPath) {
+        this.logger.warn('No rules config path specified');
+        return;
+      }
+
+      const loader = new RuleLoader(this.logger.getLevel());
+      this.ruleEngine = loader.loadFromFile(rulesPath);
+      this.clearCache();
 
       this.logger.info('Rules reloaded successfully');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await this.emit('rulesReloaded', appConfig as any);
     } catch (error) {
       this.logger.error(`Failed to reload rules: ${error}`);
       throw error;

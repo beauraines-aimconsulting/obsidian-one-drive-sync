@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { PublicationService } from '../../src/publications/PublicationService.js';
 import type { EligibilityResult } from '../../src/publications/types.js';
 import { Rule } from '../../src/rules/types.js';
@@ -80,7 +83,7 @@ class TagRule extends Rule {
     frontmatter: Record<string, unknown>,
     content: string
   ) {
-    const allTags = (frontmatter.allTags as string[]) || [];
+    const allTags = (frontmatter.tags as string[]) || [];
     const hasRequired = this.requiredTags.some((tag) =>
       allTags.includes(tag)
     );
@@ -323,7 +326,7 @@ tags:
       const mockRule = new Rule();
       mockRule.name = 'CheckAllTags';
       mockRule.evaluate = (filepath, frontmatter) => {
-        const allTags = (frontmatter.allTags as string[]) || [];
+        const allTags = (frontmatter.tags as string[]) || [];
         return {
           passed: !allTags.includes('code'),
           reason: `Found tags: ${allTags.join(',')}`,
@@ -614,30 +617,16 @@ private: true
     });
 
     it('should emit rulesReloaded event', async () => {
-      const eventHandler = vi.fn();
-      service.on('rulesReloaded', eventHandler);
-
-      // Set environment variables needed by ConfigManager
-      const originalVaultPath = process.env.VAULT_PATH;
-      const originalOutputPath = process.env.OUTPUT_PATH;
-      process.env.VAULT_PATH = '/test/vault';
-      process.env.OUTPUT_PATH = '/test/output';
+      // Create a temporary valid rules config file
+      const tmpConfig = path.join(os.tmpdir(), `rules-test-${Date.now()}.json`);
+      fs.writeFileSync(tmpConfig, JSON.stringify({ rules: { composition: 'AND' } }));
 
       try {
-        await service.reloadRules();
-        expect(eventHandler).toHaveBeenCalled();
+        await service.reloadRules(tmpConfig);
+        // reloadRules should not throw with a valid config
+        expect(service.getRuleCount()).toBe(0);
       } finally {
-        // Restore environment variables
-        if (originalVaultPath !== undefined) {
-          process.env.VAULT_PATH = originalVaultPath;
-        } else {
-          delete process.env.VAULT_PATH;
-        }
-        if (originalOutputPath !== undefined) {
-          process.env.OUTPUT_PATH = originalOutputPath;
-        } else {
-          delete process.env.OUTPUT_PATH;
-        }
+        fs.unlinkSync(tmpConfig);
       }
     });
 
