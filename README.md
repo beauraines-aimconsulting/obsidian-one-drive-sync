@@ -244,6 +244,9 @@ az ad app create \
   --sign-in-audience "AzureADMyOrg" \
   --query '{clientId:appId, objectId:id}' \
   -o json
+
+# Enable public client flows (required for device-code auth)
+az ad app update --id <CLIENT_ID> --is-fallback-public-client true
 ```
 
 Add required API permissions:
