@@ -106,7 +106,7 @@ Content`;
       expect(result.frontmatter.publish).toBe(true);
       expect(result.frontmatter.metadata).toEqual({
         author: 'John',
-        created: new Date('2024-01-01'),
+        created: '2024-01-01',
       });
     });
   });

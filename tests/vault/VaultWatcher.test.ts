@@ -7,7 +7,7 @@ import type { FileEvent } from '../../src/vault/types.js';
 describe('VaultWatcher', { timeout: 10000 }, () => {
   let watcher: VaultWatcher;
   let vaultDir: string;
-  const testDir = path.join(process.cwd(), '.test-vault-watcher');
+  const testDir = path.join(process.cwd(), '.test-vault');
 
   beforeEach(() => {
     if (!fs.existsSync(testDir)) {
