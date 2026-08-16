@@ -218,6 +218,88 @@ new TagRule({
 - `AND` (default): all configured rules must pass
 - `OR`: any configured rule may pass
 
+## Graph API Setup (Phase 2 prep)
+
+The `--probe` command tests Microsoft Graph API connectivity for future OneDrive sync.
+
+### Quick test (no app registration)
+
+```bash
+npm run build
+node dist/main.js --probe
+```
+
+This uses the Azure CLI's well-known client ID. It validates authentication but may not
+have `Files.ReadWrite` permission.
+
+### Full setup with app registration
+
+Register an app in your Azure AD tenant:
+
+```bash
+# Register the app (replace tenant if needed)
+az ad app create \
+  --display-name "Obsidian OneDrive Sync" \
+  --public-client-redirect-uris "http://localhost" \
+  --sign-in-audience "AzureADMyOrg" \
+  --query '{clientId:appId, objectId:id}' \
+  -o json
+```
+
+Add required API permissions:
+
+```bash
+# User.Read (e1fe6dd8...) + Files.ReadWrite (5c28f0bf...)
+az ad app permission add \
+  --id <CLIENT_ID> \
+  --api 00000003-0000-0000-c000-000000000000 \
+  --api-permissions \
+    e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope \
+    5c28f0bf-8a70-41f0-8446-d4ab1b98c7e0=Scope
+```
+
+Grant admin consent (requires Azure AD admin):
+
+```bash
+az ad app permission admin-consent --id <CLIENT_ID>
+```
+
+### Configure credentials
+
+Set environment variables:
+
+```bash
+export GRAPH_CLIENT_ID=<your-app-client-id>
+export GRAPH_TENANT_ID=<your-tenant-id>
+```
+
+Or add to your `config.json`:
+
+```json
+{
+  "config": {
+    "clientId": "<your-app-client-id>",
+    "tenantId": "<your-tenant-id>"
+  }
+}
+```
+
+### Run the probe
+
+```bash
+node dist/main.js --probe
+# or with config:
+node dist/main.js --config ./config.json --probe
+```
+
+The probe tests:
+1. **Authentication** — device-code flow (sign in via browser)
+2. **User.Read** — basic profile access
+3. **Files.ReadWrite** — OneDrive read access
+4. **Files.ReadWrite (write)** — uploads and deletes a small test file
+
+If permissions are blocked, it generates a formatted admin consent request to send to IT.
+
 ## CLI usage
 
 ```text
@@ -226,6 +308,7 @@ Usage: obsidian-one-drive-sync [options]
 Options:
   --config <path>  Path to config.json
   --dry-run        Scan once and exit
+  --probe          Test Graph API connectivity and permissions
   --help           Show help
 ```
 
