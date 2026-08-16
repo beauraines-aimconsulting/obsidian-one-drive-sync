@@ -4,7 +4,7 @@ import * as path from 'path';
 import { VaultService } from '../../src/vault/VaultService.js';
 import type { FileMetadata, VaultState } from '../../src/vault/types.js';
 
-const TEST_DIR = path.resolve(process.cwd(), '.test-vault');
+const TEST_DIR = path.resolve(process.cwd(), '.test-vault-service');
 
 function getTestVaultPath(suffix: string): string {
   return path.join(TEST_DIR, `vault-${suffix}-${Date.now()}`);

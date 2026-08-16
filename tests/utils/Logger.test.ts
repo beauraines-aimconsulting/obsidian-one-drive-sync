@@ -1,11 +1,23 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Logger } from '../../src/utils/Logger.js';
 
 describe('Logger', () => {
   let logger: Logger;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     logger = new Logger('info');
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('should create a logger with default level', () => {
@@ -19,30 +31,31 @@ describe('Logger', () => {
 
   it('should log at info level', () => {
     const infoLogger = new Logger('info');
-    expect(() => {
-      infoLogger.info('test message');
-    }).not.toThrow();
+    infoLogger.info('test message');
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toContain('INFO');
+    expect(logSpy.mock.calls[0][0]).toContain('test message');
+    expect(logSpy.mock.calls[0][0]).toContain('\x1b[32m');
   });
 
   it('should log at debug level when enabled', () => {
     const debugLogger = new Logger('debug');
-    expect(() => {
-      debugLogger.debug('debug message');
-    }).not.toThrow();
+    debugLogger.debug('debug message');
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toContain('DEBUG');
   });
 
   it('should not log debug when level is info', () => {
     const infoLogger = new Logger('info');
-    expect(() => {
-      infoLogger.debug('should not appear');
-    }).not.toThrow();
+    infoLogger.debug('should not appear');
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('should log error at any level', () => {
     const errorLogger = new Logger('error');
-    expect(() => {
-      errorLogger.error('error message');
-    }).not.toThrow();
+    errorLogger.error('error message');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0][0]).toContain('ERROR');
   });
 
   it('should set log level', () => {
@@ -52,28 +65,27 @@ describe('Logger', () => {
 
   it('should set context', () => {
     logger.setContext('TestContext');
-    expect(() => {
-      logger.info('test');
-    }).not.toThrow();
+    logger.info('test');
+    expect(logSpy.mock.calls[0][0]).toContain('[TestContext]');
   });
 
   it('should create child logger with nested context', () => {
     const parent = new Logger('info', 'Parent');
     const child = parent.child('Child');
-    expect(() => {
-      child.info('child message');
-    }).not.toThrow();
+    child.info('child message');
+    expect(logSpy.mock.calls[0][0]).toContain('[Parent:Child]');
   });
 
   it('should handle log with context object', () => {
-    expect(() => {
-      logger.info('message with context', { userId: 123, action: 'test' });
-    }).not.toThrow();
+    logger.info('message with context', { userId: 123, action: 'test' });
+    expect(logSpy.mock.calls[0][0]).toContain(
+      '{"userId":123,"action":"test"}'
+    );
   });
 
   it('should log warn level', () => {
-    expect(() => {
-      logger.warn('warning message');
-    }).not.toThrow();
+    logger.warn('warning message');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('WARN');
   });
 });

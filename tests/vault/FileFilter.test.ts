@@ -111,6 +111,14 @@ describe('FileFilter', () => {
       const patterns = filter.getIgnorePatterns();
       expect(patterns.length).toBe(2);
     });
+
+    it('should match glob wildcards in ignore patterns', () => {
+      filter.setIgnorePatterns(['drafts/**', 'archive/**/old.md']);
+
+      expect(filter.filter('drafts/note.md').allowed).toBe(false);
+      expect(filter.filter('archive/2024/old.md').allowed).toBe(false);
+      expect(filter.filter('archive/2024/new.md').allowed).toBe(true);
+    });
   });
 
   describe('custom extensions', () => {
