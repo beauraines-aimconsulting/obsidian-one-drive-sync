@@ -3,6 +3,7 @@ export { GraphProbe } from './GraphProbe.js';
 export { AdminConsentRequest } from './AdminConsentRequest.js';
 export { FileCachePlugin } from './FileCachePlugin.js';
 export { OneDriveClient } from './OneDriveClient.js';
+export { SyncStateStore } from './SyncStateStore.js';
 export type {
   GraphAuthConfig,
   TokenResult,
@@ -11,3 +12,4 @@ export type {
   AdminConsentRequestData,
 } from './types.js';
 export type { UploadResult, OneDriveClientOptions } from './OneDriveClient.js';
+export type { SyncEntry, SyncState } from './SyncStateStore.js';
