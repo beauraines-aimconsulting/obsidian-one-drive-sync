@@ -21,6 +21,7 @@ export default [
         __filename: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        fetch: 'readonly',
       },
     },
     plugins: {
