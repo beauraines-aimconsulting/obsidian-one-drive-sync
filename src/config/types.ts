@@ -5,4 +5,6 @@ export interface AppConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   debounceDelay: number;
   ignorePatterns?: string[];
+  clientId?: string;
+  tenantId?: string;
 }

@@ -35,6 +35,7 @@
   },
   "homepage": "https://github.com/beauraines-aimconsulting/obsidian-one-drive-sync#readme",
   "dependencies": {
+    "@azure/msal-node": "^5.5.0",
     "chokidar": "^3.5.3",
     "dotenv": "^16.3.1",
     "js-yaml": "^4.1.0"

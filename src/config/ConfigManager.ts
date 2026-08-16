@@ -99,6 +99,12 @@ export class ConfigManager {
       );
     }
 
+    // Graph API config (optional)
+    merged.clientId =
+      process.env.GRAPH_CLIENT_ID || configFromFile.clientId || undefined;
+    merged.tenantId =
+      process.env.GRAPH_TENANT_ID || configFromFile.tenantId || undefined;
+
     this.config = merged as AppConfig;
     return this.config;
   }

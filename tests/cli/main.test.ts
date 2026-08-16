@@ -6,6 +6,7 @@ describe('CLI main', () => {
     expect(parseArgs(['--dry-run', '--config', 'custom.json'])).toEqual({
       dryRun: true,
       help: false,
+      probe: false,
       configPath: 'custom.json',
     });
   });
@@ -14,6 +15,7 @@ describe('CLI main', () => {
     expect(parseArgs(['-h'])).toEqual({
       dryRun: false,
       help: true,
+      probe: false,
       configPath: undefined,
     });
   });
