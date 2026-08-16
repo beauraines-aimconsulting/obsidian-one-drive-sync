@@ -19,3 +19,23 @@ export interface FileEvent {
   oldFilepath?: string;
   timestamp: number;
 }
+
+export interface FileMetadata {
+  filepath: string;
+  lastModified: number;
+  size: number;
+  published: boolean;
+}
+
+export interface VaultState {
+  lastScanned: number;
+  fileCount: number;
+  published: number;
+  unpublished: number;
+}
+
+export interface VaultServiceConfig {
+  vaultPath?: string;
+  debounceDelay?: number;
+  ignorePatterns?: string[];
+}
