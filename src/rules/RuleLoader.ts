@@ -30,8 +30,10 @@ export class RuleLoader {
 
   /**
    * Load rules from a JSON config file path and return a configured RuleEngine.
+   * @param configPath Path to the rules config file
+   * @param vaultPath Optional vault path for PathRule normalization
    */
-  loadFromFile(configPath: string): RuleEngine {
+  loadFromFile(configPath: string, vaultPath?: string): RuleEngine {
     if (!fs.existsSync(configPath)) {
       throw new Error(`Rules config file not found: ${configPath}`);
     }
@@ -47,13 +49,15 @@ export class RuleLoader {
       );
     }
 
-    return this.loadFromObject(parsed);
+    return this.loadFromObject(parsed, vaultPath);
   }
 
   /**
    * Load rules from a parsed config object and return a configured RuleEngine.
+   * @param config The rules configuration object
+   * @param vaultPath Optional vault path for PathRule normalization
    */
-  loadFromObject(config: RulesFileConfig): RuleEngine {
+  loadFromObject(config: RulesFileConfig, vaultPath?: string): RuleEngine {
     const rulesConfig = config.rules;
 
     if (!rulesConfig) {
@@ -75,7 +79,13 @@ export class RuleLoader {
       if (typeof rulesConfig.pathRule !== 'object') {
         throw new Error('pathRule must be an object with include/exclude arrays');
       }
-      engine.addRule('PathRule', new PathRule(rulesConfig.pathRule));
+      engine.addRule(
+        'PathRule',
+        new PathRule({
+          ...rulesConfig.pathRule,
+          vaultPath,
+        })
+      );
       this.logger.info('Loaded PathRule', rulesConfig.pathRule);
     }
 

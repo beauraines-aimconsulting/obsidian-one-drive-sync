@@ -25,6 +25,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   private enableCache: boolean;
   private cacheSize: number;
   private ruleConfig: PublicationRuleConfig = {};
+  private vaultPath?: string;
 
   constructor(config?: PublicationServiceConfig) {
     super();
@@ -38,6 +39,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
 
     this.enableCache = config?.enableCache ?? true;
     this.cacheSize = config?.cacheSize ?? 100;
+    this.vaultPath = config?.vaultPath;
 
     this.logger.debug('PublicationService initialized');
   }
@@ -157,7 +159,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
       }
 
       const loader = new RuleLoader(this.logger.getLevel());
-      this.ruleEngine = loader.loadFromFile(rulesPath);
+      this.ruleEngine = loader.loadFromFile(rulesPath, this.vaultPath);
       this.clearCache();
 
       this.logger.info('Rules reloaded successfully');

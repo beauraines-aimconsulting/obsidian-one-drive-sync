@@ -6,6 +6,7 @@ export interface PublicationServiceConfig {
   rulesConfigPath?: string;
   composition?: 'AND' | 'OR';
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  vaultPath?: string;
 }
 
 export interface RuleResult {
