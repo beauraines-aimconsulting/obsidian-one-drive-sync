@@ -10,6 +10,7 @@ import {
   Configuration,
 } from '@azure/msal-node';
 import type { GraphAuthConfig, TokenResult } from './types.js';
+import { FileCachePlugin } from './FileCachePlugin.js';
 
 const DEFAULT_SCOPES = ['User.Read', 'Files.ReadWrite'];
 
@@ -20,9 +21,11 @@ export class GraphAuthProvider {
   private msalClient: PublicClientApplication;
   private config: GraphAuthConfig;
   private cachedToken: AuthenticationResult | null = null;
+  private cachePlugin: FileCachePlugin | null = null;
 
-  constructor(config: GraphAuthConfig) {
+  constructor(config: GraphAuthConfig, options?: { enableCache?: boolean; cacheDir?: string }) {
     this.config = config;
+    const enableCache = options?.enableCache ?? true;
 
     const msalConfig: Configuration = {
       auth: {
@@ -31,14 +34,16 @@ export class GraphAuthProvider {
       },
     };
 
+    if (enableCache) {
+      this.cachePlugin = new FileCachePlugin(options?.cacheDir);
+      msalConfig.cache = { cachePlugin: this.cachePlugin };
+    }
+
     this.msalClient = new PublicClientApplication(msalConfig);
   }
 
   /**
    * Create a provider using the Azure CLI well-known client ID.
-   * Useful for quick connectivity tests without a custom app registration.
-   * Note: Only User.Read is likely pre-consented; Files.ReadWrite may require
-   * a custom app registration with admin consent.
    */
   static withAzureCliCredentials(tenantId: string): GraphAuthProvider {
     return new GraphAuthProvider({
@@ -134,5 +139,22 @@ export class GraphAuthProvider {
    */
   getConfig(): GraphAuthConfig {
     return { ...this.config };
+  }
+
+  /**
+   * Clear cached tokens (logout).
+   */
+  logout(): void {
+    this.cachedToken = null;
+    if (this.cachePlugin) {
+      this.cachePlugin.clearCache();
+    }
+  }
+
+  /**
+   * Check if there are cached tokens available.
+   */
+  hasCachedTokens(): boolean {
+    return this.cachePlugin?.hasCachedTokens() ?? false;
   }
 }

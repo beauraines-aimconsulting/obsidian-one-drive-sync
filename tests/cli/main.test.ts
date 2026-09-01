@@ -7,6 +7,9 @@ describe('CLI main', () => {
       dryRun: true,
       help: false,
       probe: false,
+      logout: false,
+      sync: false,
+      forceSync: false,
       configPath: 'custom.json',
     });
   });
@@ -16,6 +19,9 @@ describe('CLI main', () => {
       dryRun: false,
       help: true,
       probe: false,
+      logout: false,
+      sync: false,
+      forceSync: false,
       configPath: undefined,
     });
   });

@@ -159,5 +159,58 @@ describe('Publication Rules', () => {
       const result = rule.evaluate('work/complete.md', {}, '');
       expect(result.passed).toBe(true);
     });
+
+    // Path normalization tests
+    it('should normalize backslashes to forward slashes', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+      });
+      const result = rule.evaluate('work\\project\\notes.md', {}, '');
+      expect(result.passed).toBe(true);
+    });
+
+    it('should normalize absolute paths when vaultPath is configured', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+        vaultPath: '/home/user/vault',
+      });
+      const result = rule.evaluate('/home/user/vault/work/notes.md', {}, '');
+      expect(result.passed).toBe(true);
+    });
+
+    it('should handle Windows-style absolute paths when vaultPath is configured', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+        vaultPath: 'C:\\Users\\user\\vault',
+      });
+      const result = rule.evaluate('C:\\Users\\user\\vault\\work\\notes.md', {}, '');
+      expect(result.passed).toBe(true);
+    });
+
+    it('should still accept relative paths when vaultPath is configured', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+        vaultPath: '/home/user/vault',
+      });
+      const result = rule.evaluate('work/notes.md', {}, '');
+      expect(result.passed).toBe(true);
+    });
+
+    it('should fail when absolute path is outside vault and does not match relative pattern', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+        vaultPath: '/home/user/vault',
+      });
+      const result = rule.evaluate('/home/user/other/work/notes.md', {}, '');
+      expect(result.passed).toBe(false);
+    });
+
+    it('should normalize mixed slash paths', () => {
+      const rule = new PathRule({
+        include: ['work/**'],
+      });
+      const result = rule.evaluate('work\\project/notes.md', {}, '');
+      expect(result.passed).toBe(true);
+    });
   });
 });
