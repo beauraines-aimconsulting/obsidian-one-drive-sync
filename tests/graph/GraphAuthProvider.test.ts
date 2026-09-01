@@ -9,7 +9,7 @@ describe('GraphAuthProvider', () => {
   };
 
   it('should construct with valid config', () => {
-    const provider = new GraphAuthProvider(testConfig);
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
     expect(provider).toBeDefined();
   });
 
@@ -22,7 +22,7 @@ describe('GraphAuthProvider', () => {
   });
 
   it('should return required scopes', () => {
-    const provider = new GraphAuthProvider(testConfig);
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
     const scopes = provider.getRequiredScopes();
 
     expect(scopes).toContain('User.Read');
@@ -30,7 +30,7 @@ describe('GraphAuthProvider', () => {
   });
 
   it('should return config copy', () => {
-    const provider = new GraphAuthProvider(testConfig);
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
     const config = provider.getConfig();
 
     expect(config.clientId).toBe('test-client-id');
@@ -40,11 +40,21 @@ describe('GraphAuthProvider', () => {
   });
 
   it('should throw on authentication failure', async () => {
-    const provider = new GraphAuthProvider(testConfig);
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
 
     // Device code flow requires network — will fail in test env
     await expect(
       provider.authenticate(['User.Read'], vi.fn())
     ).rejects.toThrow();
+  });
+
+  it('should report no cached tokens when cache is disabled', () => {
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
+    expect(provider.hasCachedTokens()).toBe(false);
+  });
+
+  it('should not throw on logout when cache is disabled', () => {
+    const provider = new GraphAuthProvider(testConfig, { enableCache: false });
+    expect(() => provider.logout()).not.toThrow();
   });
 });

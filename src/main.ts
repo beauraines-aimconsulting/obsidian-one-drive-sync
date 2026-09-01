@@ -8,18 +8,19 @@ import { GraphProbe } from './graph/GraphProbe.js';
 import type { CliOptions } from './cli/types.js';
 
 export function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { dryRun: false, help: false, probe: false, configPath: undefined };
+  const options: CliOptions = { dryRun: false, help: false, probe: false, logout: false, configPath: undefined };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--help' || argv[i] === '-h') options.help = true;
     else if (argv[i] === '--dry-run') options.dryRun = true;
     else if (argv[i] === '--probe') options.probe = true;
+    else if (argv[i] === '--logout') options.logout = true;
     else if (argv[i] === '--config') options.configPath = argv[++i];
   }
   return options;
 }
 
 export function usage(): string {
-  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit\n  --probe          Test Graph API connectivity and permissions\n  --help           Show help`;
+  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
 }
 
 async function walkMarkdown(dir: string): Promise<string[]> {
@@ -107,6 +108,15 @@ async function main(): Promise<number> {
   // Graph API probe mode
   if (options.probe) {
     return runProbe(config);
+  }
+
+  // Logout mode
+  if (options.logout) {
+    const { FileCachePlugin } = await import('./graph/FileCachePlugin.js');
+    const cache = new FileCachePlugin();
+    cache.clearCache();
+    console.log('✅ Cached tokens cleared.');
+    return 0;
   }
 
   if (!fs.existsSync(config.vaultPath)) throw new Error(`Invalid vault path: ${config.vaultPath}`);
