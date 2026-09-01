@@ -18,16 +18,20 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 COPY package*.json ./
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
+COPY --chown=node:node --from=deps /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/dist ./dist
 
 ENV NODE_ENV=production \
+    HOME=/home/node \
     VAULT_PATH=/vault \
     OUTPUT_PATH=/output \
     RULES_CONFIG=/config/rules.json \
+    ONEDRIVE_FOLDER=ObsidianPublished \
     LOG_LEVEL=info \
     DEBOUNCE_DELAY=300
 
-VOLUME ["/vault", "/output", "/config"]
+VOLUME ["/vault", "/output", "/config", "/home/node/.obsidian-sync"]
+
+USER node
 
 CMD ["node", "dist/main.js"]
