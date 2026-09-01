@@ -1,6 +1,5 @@
 import { Rule } from '../Rule.js';
 import type { Frontmatter, EvaluationResult } from '../Rule.js';
-import path from 'path';
 
 function globToRegex(glob: string): RegExp {
   // Handle ** first - it should match everything including /
