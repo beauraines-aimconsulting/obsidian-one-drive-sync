@@ -14,5 +14,4 @@ export type {
 } from './types.js';
 export type { SyncEntry, SyncState } from './SyncStateStore.js';
 export type { UploadResult, OneDriveClientOptions } from './OneDriveClient.js';
-export type { SyncEntry, SyncState } from './SyncStateStore.js';
 export type { SyncOptions, SyncResult } from './SyncService.js';
