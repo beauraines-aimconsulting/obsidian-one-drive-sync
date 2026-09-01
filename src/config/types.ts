@@ -7,4 +7,5 @@ export interface AppConfig {
   ignorePatterns?: string[];
   clientId?: string;
   tenantId?: string;
+  oneDriveFolder: string;
 }

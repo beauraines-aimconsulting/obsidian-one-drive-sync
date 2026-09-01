@@ -15,6 +15,7 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
   logLevel: 'info',
   debounceDelay: 300,
   rulesConfig: './config/rules.json',
+  oneDriveFolder: 'ObsidianPublished',
   ignorePatterns: [
     '.git/**',
     '.obsidian/**',
@@ -81,6 +82,10 @@ export class ConfigManager {
         process.env.RULES_CONFIG ||
         configFromFile.rulesConfig ||
         DEFAULT_CONFIG.rulesConfig,
+      oneDriveFolder:
+        process.env.ONEDRIVE_FOLDER ||
+        configFromFile.oneDriveFolder ||
+        DEFAULT_CONFIG.oneDriveFolder,
       logLevel: (process.env.LOG_LEVEL ||
         configFromFile.logLevel ||
         DEFAULT_CONFIG.logLevel) as 'debug' | 'info' | 'warn' | 'error',

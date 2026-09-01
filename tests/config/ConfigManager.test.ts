@@ -13,6 +13,7 @@ describe('ConfigManager', () => {
     // Clean up env
     delete process.env.VAULT_PATH;
     delete process.env.OUTPUT_PATH;
+    delete process.env.ONEDRIVE_FOLDER;
     delete process.env.RULES_CONFIG;
     delete process.env.LOG_LEVEL;
     delete process.env.DEBOUNCE_DELAY;
@@ -38,6 +39,7 @@ describe('ConfigManager', () => {
 
     expect(config.vaultPath).toBe('/test/vault');
     expect(config.outputPath).toBe('/test/output');
+    expect(config.oneDriveFolder).toBe('ObsidianPublished');
     expect(config.logLevel).toBe('debug');
     expect(config.debounceDelay).toBe(500);
   });
@@ -67,6 +69,7 @@ describe('ConfigManager', () => {
     expect(config.logLevel).toBe('info');
     expect(config.debounceDelay).toBe(300);
     expect(config.rulesConfig).toBe('./config/rules.json');
+    expect(config.oneDriveFolder).toBe('ObsidianPublished');
     expect(config.ignorePatterns).toContain('.git/**');
     expect(config.ignorePatterns).toContain('.obsidian/**');
   });
@@ -81,6 +84,16 @@ describe('ConfigManager', () => {
     expect(config.ignorePatterns).toContain('.git/**');
     expect(config.ignorePatterns).toContain('.obsidian/**');
     expect(config.ignorePatterns).toContain('custom/**');
+  });
+
+  it('should preserve a OneDrive folder as a remote path', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.ONEDRIVE_FOLDER = '~/Shared Notes';
+
+    const config = await configManager.load();
+
+    expect(config.oneDriveFolder).toBe('~/Shared Notes');
   });
 
   it('should cache config after loading', async () => {
@@ -129,6 +142,7 @@ describe('ConfigManager', () => {
         config: {
           vaultPath: '/file/vault',
           outputPath: '/file/output',
+          oneDriveFolder: 'Team Notes',
           logLevel: 'warn',
           debounceDelay: 750,
           ignorePatterns: ['temp/**', '.cache/**'],
@@ -142,6 +156,7 @@ describe('ConfigManager', () => {
 
     expect(config.vaultPath).toBe('/file/vault');
     expect(config.outputPath).toBe('/file/output');
+    expect(config.oneDriveFolder).toBe('Team Notes');
     expect(config.logLevel).toBe('warn');
     expect(config.debounceDelay).toBe(750);
     expect(config.ignorePatterns).toEqual(['temp/**', '.cache/**']);
@@ -155,6 +170,7 @@ describe('ConfigManager', () => {
         config: {
           vaultPath: '/file/vault',
           outputPath: '/file/output',
+          oneDriveFolder: 'File Folder',
           logLevel: 'warn',
           debounceDelay: 750,
         },
@@ -164,6 +180,7 @@ describe('ConfigManager', () => {
     process.env.RULES_CONFIG = rulesConfigPath;
     process.env.VAULT_PATH = '/env/vault';
     process.env.OUTPUT_PATH = '/env/output';
+    process.env.ONEDRIVE_FOLDER = 'Environment Folder';
     process.env.LOG_LEVEL = 'error';
     process.env.DEBOUNCE_DELAY = '125';
 
@@ -171,6 +188,7 @@ describe('ConfigManager', () => {
 
     expect(config.vaultPath).toBe('/env/vault');
     expect(config.outputPath).toBe('/env/output');
+    expect(config.oneDriveFolder).toBe('Environment Folder');
     expect(config.logLevel).toBe('error');
     expect(config.debounceDelay).toBe(125);
   });

@@ -75,6 +75,7 @@ Create a `.env` file in the repository root:
 ```dotenv
 VAULT_PATH=/Users/you/Obsidian/Vault
 OUTPUT_PATH=./output
+ONEDRIVE_FOLDER=ObsidianPublished
 LOG_LEVEL=info
 DEBOUNCE_DELAY=300
 IGNORE_PATTERNS=.git/**,.obsidian/**,node_modules/**
@@ -88,6 +89,7 @@ Or create a JSON config file and point `RULES_CONFIG` at it:
   "config": {
     "vaultPath": "/Users/you/Obsidian/Vault",
     "outputPath": "./output",
+    "oneDriveFolder": "ObsidianPublished",
     "logLevel": "info",
     "debounceDelay": 300,
     "ignorePatterns": [".git/**", ".obsidian/**", "node_modules/**"]
@@ -130,6 +132,7 @@ Configuration is loaded in this order:
 | --- | --- | --- |
 | `VAULT_PATH` | yes | Absolute path to the Obsidian vault |
 | `OUTPUT_PATH` | yes | Output directory path |
+| `ONEDRIVE_FOLDER` | no | Destination folder in OneDrive; defaults to `ObsidianPublished` |
 | `RULES_CONFIG` | no | Path to the JSON config file |
 | `LOG_LEVEL` | no | `debug`, `info`, `warn`, or `error` |
 | `DEBOUNCE_DELAY` | no | File change debounce in milliseconds |
