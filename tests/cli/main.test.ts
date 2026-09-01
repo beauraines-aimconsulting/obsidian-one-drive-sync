@@ -8,6 +8,8 @@ describe('CLI main', () => {
       help: false,
       probe: false,
       logout: false,
+      sync: false,
+      forceSync: false,
       configPath: 'custom.json',
     });
   });
@@ -18,6 +20,8 @@ describe('CLI main', () => {
       help: true,
       probe: false,
       logout: false,
+      sync: false,
+      forceSync: false,
       configPath: undefined,
     });
   });

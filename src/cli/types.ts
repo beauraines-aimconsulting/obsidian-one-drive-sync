@@ -4,6 +4,8 @@ export interface CliOptions {
   help: boolean;
   probe: boolean;
   logout: boolean;
+  sync: boolean;
+  forceSync: boolean;
 }
 
 export interface CliRunResult {
