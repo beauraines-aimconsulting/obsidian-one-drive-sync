@@ -17,6 +17,7 @@ describe('ConfigManager', () => {
     delete process.env.RULES_CONFIG;
     delete process.env.LOG_LEVEL;
     delete process.env.DEBOUNCE_DELAY;
+    delete process.env.HEALTH_PORT;
     delete process.env.IGNORE_PATTERNS;
     delete process.env.RULES_CONFIG;
 
@@ -42,6 +43,7 @@ describe('ConfigManager', () => {
     expect(config.oneDriveFolder).toBe('ObsidianPublished');
     expect(config.logLevel).toBe('debug');
     expect(config.debounceDelay).toBe(500);
+    expect(config.healthPort).toBe(8080);
   });
 
   it('should throw error when VAULT_PATH is missing', async () => {
@@ -94,6 +96,26 @@ describe('ConfigManager', () => {
     const config = await configManager.load();
 
     expect(config.oneDriveFolder).toBe('~/Shared Notes');
+  });
+
+  it('should read health port from the environment', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.HEALTH_PORT = '9090';
+
+    const config = await configManager.load();
+
+    expect(config.healthPort).toBe(9090);
+  });
+
+  it('should reject an invalid health port', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.HEALTH_PORT = '70000';
+
+    await expect(configManager.load()).rejects.toThrow(
+      'HEALTH_PORT must be an integer between 1 and 65535'
+    );
   });
 
   it('should cache config after loading', async () => {

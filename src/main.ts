@@ -9,6 +9,7 @@ import { GraphProbe } from './graph/GraphProbe.js';
 import { SyncService } from './graph/SyncService.js';
 import { SyncStateStore } from './graph/SyncStateStore.js';
 import { createGracefulShutdown } from './cli/gracefulShutdown.js';
+import { HealthServer } from './health/HealthServer.js';
 import type { CliOptions } from './cli/types.js';
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -201,8 +202,11 @@ async function main(): Promise<number> {
   }
 
   const pendingEvaluations = new Set<Promise<void>>();
+  let lastFileProcessedAt: string | null = null;
   const evaluateFile = (filepath: string): void => {
-    const evaluation = evaluate(filepath);
+    const evaluation = evaluate(filepath).then(() => {
+      lastFileProcessedAt = new Date().toISOString();
+    });
     pendingEvaluations.add(evaluation);
     void evaluation.then(
       () => pendingEvaluations.delete(evaluation),
@@ -218,12 +222,21 @@ async function main(): Promise<number> {
   watcher.on('add', (e) => evaluateFile(e.filepath));
   watcher.on('modify', (e) => evaluateFile(e.filepath));
   await watcher.watch(config.vaultPath);
+  const healthServer = new HealthServer(
+    () => ({
+      watcherActive: watcher.isWatching(),
+      lastFileProcessedAt,
+    }),
+    config.healthPort
+  );
+  await healthServer.start();
+  console.log(`❤️  Health probe: http://localhost:${config.healthPort}/healthz`);
 
   return await new Promise<number>((resolve) => {
     const shutdownHandler = createGracefulShutdown(watcher, pendingEvaluations, {
       info: (message) => console.log(`\n${message}`),
       error: (message) => console.error(message),
-    });
+    }, healthServer);
     const shutdown = async (signal: string): Promise<void> => resolve(await shutdownHandler(signal));
 
     process.once('SIGINT', () => void shutdown('SIGINT'));
