@@ -174,7 +174,10 @@ async function main(): Promise<number> {
   }
 
   if (!fs.existsSync(config.vaultPath)) throw new Error(`Invalid vault path: ${config.vaultPath}`);
-  const publicationService = new PublicationService({ logLevel: config.logLevel });
+  const publicationService = new PublicationService({ 
+    logLevel: config.logLevel,
+    vaultPath: config.vaultPath,
+  });
 
   // Load rules from config file
   const rulesPath = configPath ?? config.rulesConfig;
