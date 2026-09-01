@@ -2,6 +2,7 @@ export { GraphAuthProvider } from './GraphAuthProvider.js';
 export { GraphProbe } from './GraphProbe.js';
 export { AdminConsentRequest } from './AdminConsentRequest.js';
 export { OneDriveClient } from './OneDriveClient.js';
+export { FileCachePlugin } from './FileCachePlugin.js';
 export type {
   GraphAuthConfig,
   TokenResult,
