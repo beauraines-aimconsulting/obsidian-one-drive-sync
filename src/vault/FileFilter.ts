@@ -64,6 +64,17 @@ export class FileFilter {
   }
 
   /**
+   * Check if a path matches any ignore pattern, without applying the
+   * extension check. Used to prune directories while walking a vault.
+   */
+  isIgnored(filepath: string): boolean {
+    const normalizedPath = filepath.replace(/\\/g, '/');
+    if (this.matchesIgnorePattern(normalizedPath)) return true;
+    // A directory is ignored when a pattern targets its contents (e.g. `.git/**`).
+    return this.matchesIgnorePattern(`${normalizedPath}/`);
+  }
+
+  /**
    * Check if a file path has an allowed extension.
    */
   private hasAllowedExtension(filepath: string): boolean {
