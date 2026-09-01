@@ -15,7 +15,14 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
   logLevel: 'info',
   debounceDelay: 300,
   rulesConfig: './config/rules.json',
-  ignorePatterns: ['.git/**', '.obsidian/**', 'node_modules/**', '.DS_Store'],
+  ignorePatterns: [
+    '.git/**',
+    '.obsidian/**',
+    '.trash/**',
+    'node_modules/**',
+    'Templates/**',
+    '.DS_Store',
+  ],
 };
 
 export class ConfigManager {

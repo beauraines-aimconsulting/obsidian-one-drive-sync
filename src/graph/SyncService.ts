@@ -9,6 +9,7 @@ import { PublicationService } from '../publications/PublicationService.js';
 import { GraphAuthProvider } from './GraphAuthProvider.js';
 import { OneDriveClient } from './OneDriveClient.js';
 import { SyncStateStore } from './SyncStateStore.js';
+import { walkMarkdown } from '../vault/walkMarkdown.js';
 
 export interface SyncOptions {
   vaultPath: string;
@@ -16,6 +17,7 @@ export interface SyncOptions {
   configPath?: string;
   forceSync?: boolean;
   dryRun?: boolean;
+  ignorePatterns?: string[];
 }
 
 export interface SyncResult {
@@ -154,16 +156,6 @@ export class SyncService {
   }
 
   private async walkMarkdown(dir: string): Promise<string[]> {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const files: string[] = [];
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        files.push(...(await this.walkMarkdown(full)));
-      } else if (entry.isFile() && full.endsWith('.md')) {
-        files.push(full);
-      }
-    }
-    return files;
+    return walkMarkdown(dir, { ignorePatterns: this.options.ignorePatterns });
   }
 }

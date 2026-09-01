@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ConfigManager } from './config/ConfigManager.js';
 import { PublicationService } from './publications/PublicationService.js';
 import { VaultWatcher } from './vault/VaultWatcher.js';
+import { walkMarkdown } from './vault/walkMarkdown.js';
 import { GraphAuthProvider } from './graph/GraphAuthProvider.js';
 import { GraphProbe } from './graph/GraphProbe.js';
 import { SyncService } from './graph/SyncService.js';
@@ -25,17 +26,6 @@ export function parseArgs(argv: string[]): CliOptions {
 
 export function usage(): string {
   return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --force-sync     Re-upload all eligible files regardless of changes\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
-}
-
-async function walkMarkdown(dir: string): Promise<string[]> {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...(await walkMarkdown(full)));
-    else if (entry.isFile() && full.endsWith('.md')) files.push(full);
-  }
-  return files;
 }
 
 async function runProbe(config: import('./config/types.js').AppConfig): Promise<number> {
@@ -121,6 +111,7 @@ async function runSync(
     targetFolder,
     forceSync: options.forceSync,
     dryRun: options.dryRun,
+    ignorePatterns: config.ignorePatterns,
   });
 
   console.log('🔄 Starting sync...');
@@ -202,7 +193,7 @@ async function main(): Promise<number> {
   };
   console.log(`📂 Monitoring vault: ${config.vaultPath}`);
   if (options.dryRun) {
-    const files = await walkMarkdown(config.vaultPath);
+    const files = walkMarkdown(config.vaultPath, { ignorePatterns: config.ignorePatterns });
     console.log(`Scanning ${files.length} markdown files...\n`);
     for (const file of files) await evaluate(file);
     return 0;
