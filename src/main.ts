@@ -102,7 +102,7 @@ async function runSync(
     return 1;
   }
 
-  const targetFolder = config.outputPath ?? 'ObsidianPublished';
+  const targetFolder = config.oneDriveFolder;
   const authProvider = new GraphAuthProvider({ clientId, tenantId });
   const syncState = new SyncStateStore();
 
