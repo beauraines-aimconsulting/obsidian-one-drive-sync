@@ -137,13 +137,17 @@ Configuration is loaded in this order:
 | `LOG_LEVEL` | no | `debug`, `info`, `warn`, or `error` |
 | `DEBOUNCE_DELAY` | no | File change debounce in milliseconds |
 | `IGNORE_PATTERNS` | no | Comma-separated glob patterns |
+| `HEALTH_PORT` | no | Port for the health endpoint in watch mode; defaults to `8080` |
 
 ### Defaults
 
 - `logLevel`: `info`
 - `debounceDelay`: `300`
 - `rulesConfig`: `./config/rules.json`
-- `ignorePatterns`: `.git/**`, `.obsidian/**`, `node_modules/**`, `.DS_Store`
+- `oneDriveFolder`: `ObsidianPublished`
+- `healthPort`: `8080`
+- `ignorePatterns`: `.git/**`, `.obsidian/**`, `.trash/**`, `node_modules/**`, `Templates/**`,
+  `.DS_Store`
 
 ### Notes
 
@@ -313,8 +317,11 @@ Usage: obsidian-one-drive-sync [options]
 
 Options:
   --config <path>  Path to config.json
-  --dry-run        Scan once and exit
+  --dry-run        Scan once and exit (or preview sync without uploading)
+  --sync           Sync eligible files to OneDrive
+  --force-sync     Re-upload all eligible files regardless of changes
   --probe          Test Graph API connectivity and permissions
+  --logout         Clear cached authentication tokens
   --help           Show help
 ```
 
@@ -333,6 +340,46 @@ npm start -- --dry-run
 - scans Markdown files in dry-run mode
 - or watches the vault and evaluates add/change events continuously
 - prints one line per file with an eligible / not-eligible result
+
+## Health endpoint
+
+In watch mode the CLI serves a health endpoint for container orchestrators:
+
+```bash
+curl http://localhost:8080/healthz
+```
+
+```json
+{
+  "status": "ok",
+  "watcherActive": true,
+  "lastFileProcessedAt": "2026-09-01T18:00:00.000Z"
+}
+```
+
+- Returns `200` while the vault watcher is active
+- Returns `503` if the watcher is not active, so an orchestrator can restart the container
+- Returns `404` for any other path
+- Only runs in watch mode — `--dry-run`, `--sync`, and `--probe` exit instead of serving
+
+### Changing the port
+
+The endpoint listens on `8080` by default. If that port is already in use, override it with
+`HEALTH_PORT`:
+
+```bash
+HEALTH_PORT=8081 npm start
+```
+
+For Docker, publish the port you want on the host:
+
+```bash
+docker run -e HEALTH_PORT=8081 -p 8081:8081 obsidian-one-drive-sync
+```
+
+With Compose, set `HEALTH_PORT` in your `.env` file. It changes the **host** port only; the
+container keeps listening on `8080`, so `HEALTH_PORT=8081` makes the endpoint available at
+`http://localhost:8081/healthz`.
 
 ## Development guide
 

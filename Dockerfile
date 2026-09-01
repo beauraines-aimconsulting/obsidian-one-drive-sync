@@ -32,6 +32,8 @@ ENV NODE_ENV=production \
 
 VOLUME ["/vault", "/output", "/config", "/home/node/.obsidian-sync"]
 
+EXPOSE 8080
+
 USER node
 
 CMD ["node", "dist/main.js"]

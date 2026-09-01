@@ -57,4 +57,18 @@ describe('createGracefulShutdown', () => {
     await expect(shutdown('SIGTERM')).resolves.toBe(1);
     expect(error).toHaveBeenCalledWith('Failed to shut down cleanly: close failed');
   });
+
+  it('stops the health server before the watcher', async () => {
+    const events: string[] = [];
+    const shutdown = createGracefulShutdown(
+      { unwatch: async () => { events.push('watcher'); } },
+      new Set(),
+      { info: vi.fn(), error: vi.fn() },
+      { stop: async () => { events.push('health'); } }
+    );
+
+    await expect(shutdown('SIGTERM')).resolves.toBe(0);
+
+    expect(events).toEqual(['health', 'watcher']);
+  });
 });

@@ -8,4 +8,5 @@ export interface AppConfig {
   clientId?: string;
   tenantId?: string;
   oneDriveFolder: string;
+  healthPort: number;
 }

@@ -14,6 +14,7 @@ function expandTilde(filepath: string): string {
 const DEFAULT_CONFIG: Partial<AppConfig> = {
   logLevel: 'info',
   debounceDelay: 300,
+  healthPort: 8080,
   rulesConfig: './config/rules.json',
   oneDriveFolder: 'ObsidianPublished',
   ignorePatterns: [
@@ -66,6 +67,10 @@ export class ConfigManager {
         ? String(configFromFile.debounceDelay)
         : undefined) ||
       String(DEFAULT_CONFIG.debounceDelay);
+    const healthPortValue =
+      process.env.HEALTH_PORT ||
+      (configFromFile.healthPort !== undefined ? String(configFromFile.healthPort) : undefined) ||
+      String(DEFAULT_CONFIG.healthPort);
 
     const merged = {
       ...DEFAULT_CONFIG,
@@ -90,6 +95,7 @@ export class ConfigManager {
         configFromFile.logLevel ||
         DEFAULT_CONFIG.logLevel) as 'debug' | 'info' | 'warn' | 'error',
       debounceDelay: parseInt(debounceDelayValue, 10),
+      healthPort: parseInt(healthPortValue, 10),
     };
 
     // Validate required fields
@@ -98,6 +104,9 @@ export class ConfigManager {
     }
     if (!merged.outputPath) {
       throw new Error('OUTPUT_PATH is required (set via env var or config file)');
+    }
+    if (!Number.isInteger(merged.healthPort) || merged.healthPort < 1 || merged.healthPort > 65535) {
+      throw new Error('HEALTH_PORT must be an integer between 1 and 65535');
     }
 
     // Expand ~ in paths
