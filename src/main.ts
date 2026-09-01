@@ -8,6 +8,7 @@ import { GraphAuthProvider } from './graph/GraphAuthProvider.js';
 import { GraphProbe } from './graph/GraphProbe.js';
 import { SyncService } from './graph/SyncService.js';
 import { SyncStateStore } from './graph/SyncStateStore.js';
+import { createGracefulShutdown } from './cli/gracefulShutdown.js';
 import type { CliOptions } from './cli/types.js';
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -198,17 +199,36 @@ async function main(): Promise<number> {
     for (const file of files) await evaluate(file);
     return 0;
   }
-  watcher.on('add', (e) => void evaluate(e.filepath));
-  watcher.on('modify', (e) => void evaluate(e.filepath));
-  await watcher.watch(config.vaultPath);
-  const shutdown = async (signal: string) => {
-    console.log(`\nShutting down on ${signal}`);
-    await watcher.unwatch().catch(() => undefined);
-    process.exit(0);
+
+  const pendingEvaluations = new Set<Promise<void>>();
+  const evaluateFile = (filepath: string): void => {
+    const evaluation = evaluate(filepath);
+    pendingEvaluations.add(evaluation);
+    void evaluation.then(
+      () => pendingEvaluations.delete(evaluation),
+      (error: unknown) => {
+        pendingEvaluations.delete(evaluation);
+        console.error(
+          `Failed to evaluate ${filepath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    );
   };
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  return await new Promise(() => {});
+
+  watcher.on('add', (e) => evaluateFile(e.filepath));
+  watcher.on('modify', (e) => evaluateFile(e.filepath));
+  await watcher.watch(config.vaultPath);
+
+  return await new Promise<number>((resolve) => {
+    const shutdownHandler = createGracefulShutdown(watcher, pendingEvaluations, {
+      info: (message) => console.log(`\n${message}`),
+      error: (message) => console.error(message),
+    });
+    const shutdown = async (signal: string): Promise<void> => resolve(await shutdownHandler(signal));
+
+    process.once('SIGINT', () => void shutdown('SIGINT'));
+    process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
