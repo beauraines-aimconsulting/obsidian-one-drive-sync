@@ -11,6 +11,8 @@ export interface FileFilterResult {
 export interface VaultWatcherConfig {
   debounceDelay?: number;
   ignorePatterns?: string[];
+  usePolling?: boolean;
+  pollInterval?: number;
 }
 
 export interface FileEvent {

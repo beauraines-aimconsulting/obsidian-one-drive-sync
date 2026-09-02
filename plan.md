@@ -228,26 +228,54 @@ DEBOUNCE_DELAY=300
 - **Rule Format**: Code-based (TS classes) for type safety
 - **Extensibility**: Rule interface allows custom implementations
 - **Testing**: vitest for speed and ESM support
-- **No OneDrive/Auth**: Placeholder for Phase 2
+- **OneDrive/Auth**: implemented in Phase 2
 
 ---
 
 ## Acceptance Criteria for Phase 1
 
-- [ ] Project builds without errors (npm run build)
-- [ ] All tests pass (npm run test)
-- [ ] Code passes linting (npm run lint)
-- [ ] VaultWatcher detects file changes accurately
-- [ ] PublicationService correctly evaluates eligibility based on rules
-- [ ] Config system loads from .env or config.json
-- [ ] CLI runs and logs eligibility decisions to console
-- [ ] README documents how to configure and run
+- [x] Project builds without errors (npm run build)
+- [x] All tests pass (npm run test)
+- [x] Code passes linting (npm run lint)
+- [x] VaultWatcher detects file changes accurately
+- [x] PublicationService correctly evaluates eligibility based on rules
+- [x] Config system loads from .env or config.json
+- [x] CLI runs and logs eligibility decisions to console
+- [x] README documents how to configure and run
 
 ## Current Status
 
-- **Completed and merged:** Project Scaffolding, Configuration System, Logging & Utilities, Frontmatter Parser, File Filter, Publication Rules, Rule Engine, Inline Tag Parser, Vault Watcher, Vault Service, Publication Service, CLI Entry Point
-- **Remaining Phase 1 work:** Unit Tests, Integration Tests, Documentation
-- **Current repository state:** main branch is up to date with merged PRs through #36
+**Phase 1 — complete.** Project scaffolding, configuration system, logging & utilities,
+frontmatter parser, inline tag parser, file filter, publication rules, rule engine, vault
+watcher, vault service, publication service, CLI entry point, unit tests, integration tests,
+and documentation are all merged. The suite runs 394 tests across 24 files; build, tests, and
+lint are green.
+
+**Phase 2 (OneDrive sync + Graph auth) — complete, with git versioning dropped.** Merged work
+covers MSAL device-code authentication, persistent token cache, the Graph connectivity probe
+with admin-consent request generation, the OneDrive upload client, sync state tracking for
+change detection, the sync service, and the CLI `--sync`, `--force-sync`, `--dry-run`,
+`--probe`, and `--logout` modes.
+
+**Phase 3 (containerization) — complete.** Multi-stage Dockerfile running as non-root, local
+Docker Compose setup, health endpoint, graceful SIGTERM shutdown with in-flight evaluation
+draining, CI workflows for build/test and container image, and container documentation.
+
+**Remaining work:**
+- Frontmatter parse error handling: unhelpful YAMLException dumps, missing filename, silent
+  sync exclusion (#63)
+- CI: bump GitHub Actions to latest majors (#66)
+- Verify and close the sync-state volume permission issue (#73)
+- Phase 4: web UI, scheduled syncs, advanced filtering (#25–#28)
+
+**Current repository state:** `main` is up to date with merged PRs through #72.
+
+### Scope change: git versioning dropped
+
+Phase 2 originally included git version control of published content. That has been removed
+from the roadmap — OneDrive itself provides file versioning, and a second version-control
+system adds state to manage without a matching benefit. No git integration code exists in
+`src/`, and none is planned.
 
 ---
 
@@ -297,7 +325,10 @@ DEBOUNCE_DELAY=300
 
 ## Notes
 
-- Phase 2 will add: OneDrive sync, Microsoft Graph authentication, git version control
-- Phase 3 could add: Web UI for managing rules, scheduled syncs, more advanced filtering
+- Phase 2 added: OneDrive sync and Microsoft Graph authentication. Git version control was
+  considered and dropped.
+- Phase 3 added: containerization with a volume-mounted vault, health endpoint, and CI image
+  builds.
+- Phase 4 could add: web UI for managing rules, scheduled syncs, more advanced filtering
 - All code should be modular to support future extensibility
 - **Human review is required for all PRs** - no automatic merges

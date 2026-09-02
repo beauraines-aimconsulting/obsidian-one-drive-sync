@@ -187,7 +187,12 @@ async function main(): Promise<number> {
     return runSync(config, publicationService, options);
   }
 
-  const watcher = new VaultWatcher({ debounceDelay: config.debounceDelay, ignorePatterns: config.ignorePatterns });
+  const watcher = new VaultWatcher({
+    debounceDelay: config.debounceDelay,
+    ignorePatterns: config.ignorePatterns,
+    usePolling: config.usePolling,
+    pollInterval: config.pollInterval,
+  });
   const evaluate = async (filepath: string) => {
     const relativePath = path.relative(config.vaultPath, filepath);
     const result = await publicationService.evaluateFile(relativePath, fs.readFileSync(filepath, 'utf-8'));

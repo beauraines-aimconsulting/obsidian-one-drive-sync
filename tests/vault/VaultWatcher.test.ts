@@ -709,4 +709,30 @@ describe('VaultWatcher', { timeout: 10000 }, () => {
       expect(eventCount).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('polling options', () => {
+    const pollDir = path.join(process.cwd(), 'test-vault-polling');
+
+    afterEach(() => {
+      fs.rmSync(pollDir, { recursive: true, force: true });
+    });
+
+    it('should detect changes when polling is enabled', async () => {
+      fs.mkdirSync(pollDir, { recursive: true });
+      watcher = new VaultWatcher({ debounceDelay: 50, usePolling: true, pollInterval: 100 });
+
+      const events: FileEvent[] = [];
+      watcher.on('add', (event) => events.push(event));
+
+      await watcher.watch(pollDir);
+      fs.writeFileSync(path.join(pollDir, 'polled.md'), '# polled');
+
+      await vi.waitFor(() => expect(events.length).toBeGreaterThan(0), {
+        timeout: 5000,
+        interval: 100,
+      });
+
+      expect(events[0].filepath).toContain('polled.md');
+    });
+  });
 });

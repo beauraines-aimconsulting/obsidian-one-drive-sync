@@ -18,6 +18,8 @@ describe('ConfigManager', () => {
     delete process.env.LOG_LEVEL;
     delete process.env.DEBOUNCE_DELAY;
     delete process.env.HEALTH_PORT;
+    delete process.env.WATCH_USE_POLLING;
+    delete process.env.WATCH_POLL_INTERVAL;
     delete process.env.IGNORE_PATTERNS;
     delete process.env.RULES_CONFIG;
 
@@ -115,6 +117,48 @@ describe('ConfigManager', () => {
 
     await expect(configManager.load()).rejects.toThrow(
       'HEALTH_PORT must be an integer between 1 and 65535'
+    );
+  });
+
+  it('should default polling off with a 1000ms interval', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+
+    const config = await configManager.load();
+
+    expect(config.usePolling).toBe(false);
+    expect(config.pollInterval).toBe(1000);
+  });
+
+  it('should enable polling from the environment', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.WATCH_USE_POLLING = 'true';
+    process.env.WATCH_POLL_INTERVAL = '2500';
+
+    const config = await configManager.load();
+
+    expect(config.usePolling).toBe(true);
+    expect(config.pollInterval).toBe(2500);
+  });
+
+  it('should treat non-truthy polling values as disabled', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.WATCH_USE_POLLING = 'false';
+
+    const config = await configManager.load();
+
+    expect(config.usePolling).toBe(false);
+  });
+
+  it('should reject an invalid poll interval', async () => {
+    process.env.VAULT_PATH = '/test/vault';
+    process.env.OUTPUT_PATH = '/test/output';
+    process.env.WATCH_POLL_INTERVAL = '0';
+
+    await expect(configManager.load()).rejects.toThrow(
+      'WATCH_POLL_INTERVAL must be a positive integer (milliseconds)'
     );
   });
 
