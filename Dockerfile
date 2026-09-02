@@ -30,6 +30,9 @@ ENV NODE_ENV=production \
     LOG_LEVEL=info \
     DEBOUNCE_DELAY=300
 
+RUN mkdir -p /home/node/.obsidian-sync /output \
+    && chown -R node:node /home/node/.obsidian-sync /output
+
 VOLUME ["/vault", "/output", "/config", "/home/node/.obsidian-sync"]
 
 EXPOSE 8080
