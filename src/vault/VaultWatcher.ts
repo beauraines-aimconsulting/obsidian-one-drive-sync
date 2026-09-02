@@ -12,10 +12,14 @@ export class VaultWatcher extends EventEmitter<FileEvent> {
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private watching: boolean = false;
   private vaultPath: string = '';
+  private usePolling: boolean;
+  private pollInterval: number;
 
   constructor(config?: VaultWatcherConfig) {
     super();
     this.debounceDelay = config?.debounceDelay ?? 300;
+    this.usePolling = config?.usePolling ?? false;
+    this.pollInterval = config?.pollInterval ?? 1000;
     this.logger = new Logger('info', 'VaultWatcher');
 
     const ignorePatterns = config?.ignorePatterns ?? [];
@@ -35,13 +39,19 @@ export class VaultWatcher extends EventEmitter<FileEvent> {
     }
 
     this.vaultPath = vaultPath;
-    this.logger.info('Starting vault watcher', { vaultPath });
+    this.logger.info('Starting vault watcher', {
+      vaultPath,
+      usePolling: this.usePolling,
+      ...(this.usePolling ? { pollInterval: this.pollInterval } : {}),
+    });
 
     try {
       this.watcher = chokidar.watch(vaultPath, {
         ignored: /(^|[/\\])\.|node_modules|\.git/,
         persistent: true,
         ignoreInitial: true,
+        usePolling: this.usePolling,
+        interval: this.pollInterval,
         awaitWriteFinish: {
           stabilityThreshold: 100,
           pollInterval: 100,

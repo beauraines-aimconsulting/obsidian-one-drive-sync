@@ -15,6 +15,8 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
   logLevel: 'info',
   debounceDelay: 300,
   healthPort: 8080,
+  usePolling: false,
+  pollInterval: 1000,
   rulesConfig: './config/rules.json',
   oneDriveFolder: 'ObsidianPublished',
   ignorePatterns: [
@@ -71,6 +73,16 @@ export class ConfigManager {
       process.env.HEALTH_PORT ||
       (configFromFile.healthPort !== undefined ? String(configFromFile.healthPort) : undefined) ||
       String(DEFAULT_CONFIG.healthPort);
+    const pollIntervalValue =
+      process.env.WATCH_POLL_INTERVAL ||
+      (configFromFile.pollInterval !== undefined
+        ? String(configFromFile.pollInterval)
+        : undefined) ||
+      String(DEFAULT_CONFIG.pollInterval);
+    const usePolling =
+      process.env.WATCH_USE_POLLING !== undefined
+        ? ['1', 'true', 'yes'].includes(process.env.WATCH_USE_POLLING.trim().toLowerCase())
+        : (configFromFile.usePolling ?? DEFAULT_CONFIG.usePolling ?? false);
 
     const merged = {
       ...DEFAULT_CONFIG,
@@ -96,6 +108,8 @@ export class ConfigManager {
         DEFAULT_CONFIG.logLevel) as 'debug' | 'info' | 'warn' | 'error',
       debounceDelay: parseInt(debounceDelayValue, 10),
       healthPort: parseInt(healthPortValue, 10),
+      usePolling,
+      pollInterval: parseInt(pollIntervalValue, 10),
     };
 
     // Validate required fields
@@ -107,6 +121,9 @@ export class ConfigManager {
     }
     if (!Number.isInteger(merged.healthPort) || merged.healthPort < 1 || merged.healthPort > 65535) {
       throw new Error('HEALTH_PORT must be an integer between 1 and 65535');
+    }
+    if (!Number.isInteger(merged.pollInterval) || merged.pollInterval < 1) {
+      throw new Error('WATCH_POLL_INTERVAL must be a positive integer (milliseconds)');
     }
 
     // Expand ~ in paths

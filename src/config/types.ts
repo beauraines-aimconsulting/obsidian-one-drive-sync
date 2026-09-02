@@ -9,4 +9,6 @@ export interface AppConfig {
   tenantId?: string;
   oneDriveFolder: string;
   healthPort: number;
+  usePolling: boolean;
+  pollInterval: number;
 }

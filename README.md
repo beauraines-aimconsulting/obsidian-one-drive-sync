@@ -1,8 +1,8 @@
 # Obsidian OneDrive Sync
 
 Selective publication pipeline for Obsidian vault content.  
-Phase 1 focuses on watching a vault, evaluating notes against a rule engine, and reporting
-whether each Markdown file is eligible for publication.
+It watches a vault, evaluates notes against a rule engine, and syncs the eligible Markdown
+files to OneDrive through the Microsoft Graph API. It runs locally or as a container.
 
 ## Overview / motivation
 
@@ -13,6 +13,7 @@ creates a small, typed CLI that:
 - parses YAML frontmatter and inline tags
 - evaluates notes with a rule system
 - prints a simple eligibility decision to the console
+- uploads eligible notes to a OneDrive folder on demand
 
 ## Features
 
@@ -24,6 +25,9 @@ creates a small, typed CLI that:
 - rule engine with `AND` / `OR` composition
 - structured logging
 - dry-run scan mode
+- Microsoft Graph device-code auth with a persistent token cache
+- OneDrive upload with change detection, so unchanged notes are skipped
+- container image with a health endpoint and graceful shutdown
 
 ## Architecture
 
@@ -138,6 +142,8 @@ Configuration is loaded in this order:
 | `DEBOUNCE_DELAY` | no | File change debounce in milliseconds |
 | `IGNORE_PATTERNS` | no | Comma-separated glob patterns |
 | `HEALTH_PORT` | no | Port for the health endpoint in watch mode; defaults to `8080` |
+| `WATCH_USE_POLLING` | no | Set to `true` to poll for changes instead of using native filesystem events. Required for bind-mounted vaults in Docker on macOS/Windows |
+| `WATCH_POLL_INTERVAL` | no | Poll interval in milliseconds when polling is enabled; defaults to `1000` |
 
 ### Defaults
 
@@ -146,13 +152,15 @@ Configuration is loaded in this order:
 - `rulesConfig`: `./config/rules.json`
 - `oneDriveFolder`: `ObsidianPublished`
 - `healthPort`: `8080`
+- `usePolling`: `false`
+- `pollInterval`: `1000`
 - `ignorePatterns`: `.git/**`, `.obsidian/**`, `.trash/**`, `node_modules/**`, `Templates/**`,
   `.DS_Store`
 
 ### Notes
 
-- `OUTPUT_PATH` is currently required by the config loader, even though Phase 1 only reports
-  eligibility to the console.
+- `OUTPUT_PATH` is currently required by the config loader, even though the CLI reports
+  eligibility to the console and uploads directly to OneDrive rather than writing locally.
 - `--config <path>` sets `RULES_CONFIG` for the current run.
 - The JSON config file is expected to contain a top-level `config` object.
 
@@ -225,7 +233,7 @@ new TagRule({
 - `AND` (default): all configured rules must pass
 - `OR`: any configured rule may pass
 
-## Graph API Setup (Phase 2 prep)
+## Graph API Setup
 
 The `--probe` command tests Microsoft Graph API connectivity for future OneDrive sync.
 
@@ -381,6 +389,159 @@ With Compose, set `HEALTH_PORT` in your `.env` file. It changes the **host** por
 container keeps listening on `8080`, so `HEALTH_PORT=8081` makes the endpoint available at
 `http://localhost:8081/healthz`.
 
+## Docker deployment
+
+The image is a multi-stage build: TypeScript is compiled in a build stage, and the runtime
+stage is a slim Node image containing only `dist/` and production dependencies. It runs as the
+non-root `node` user and logs to stdout/stderr for container log aggregation.
+
+### Build the image
+
+```bash
+docker build -t obsidian-one-drive-sync:local .
+```
+
+### Volume mounts
+
+| Container path | Required | Mode | Purpose |
+| --- | --- | --- | --- |
+| `/vault` | yes | read-only | The Obsidian vault to monitor |
+| `/config/rules.json` | recommended | read-only | Rules config file; without it every file passes |
+| `/home/node/.obsidian-sync` | yes for sync | read-write | MSAL token cache and sync state; must be a named volume so tokens and upload state survive restarts |
+| `/output` | no | read-write | Output directory; reserved, not written to yet |
+
+The vault is mounted read-only on purpose — the tool never modifies your notes.
+
+### Environment variables
+
+Image defaults already point the path variables at the mount points above, so you normally only
+set credentials and behavior:
+
+| Variable | Required | Default in image | Description |
+| --- | --- | --- | --- |
+| `GRAPH_CLIENT_ID` | for sync/probe | unset | Entra app registration client ID |
+| `GRAPH_TENANT_ID` | no | `common` | Tenant ID, or `common` for multi-tenant |
+| `ONEDRIVE_FOLDER` | no | `ObsidianPublished` | Destination folder in OneDrive |
+| `VAULT_PATH` | no | `/vault` | Override only if you mount elsewhere |
+| `OUTPUT_PATH` | no | `/output` | Override only if you mount elsewhere |
+| `RULES_CONFIG` | no | `/config/rules.json` | Override only if you mount elsewhere |
+| `LOG_LEVEL` | no | `info` | `debug`, `info`, `warn`, or `error` |
+| `DEBOUNCE_DELAY` | no | `300` | File change debounce in milliseconds |
+| `WATCH_USE_POLLING` | for watch mode on macOS/Windows | `false` | Poll instead of relying on native filesystem events |
+| `WATCH_POLL_INTERVAL` | no | `1000` | Poll interval in milliseconds |
+| `HEALTH_PORT` | no | `8080` | Health endpoint port inside the container |
+
+### Watch mode on bind-mounted vaults
+
+Filesystem events do not propagate into the container for bind mounts on Docker Desktop for
+macOS and Windows, so watch mode sees the initial vault but never reacts to edits. Set
+`WATCH_USE_POLLING=true` there — it is already the default in `compose.yaml`:
+
+```bash
+docker run -e WATCH_USE_POLLING=true ... obsidian-one-drive-sync:local
+```
+
+On Linux hosts, native events work and polling can stay off, which is cheaper for large vaults.
+If you enable polling on a large vault and see high CPU, raise `WATCH_POLL_INTERVAL`.
+
+### Example `docker run`
+
+Watch mode, evaluating eligibility and serving the health endpoint:
+
+```bash
+docker run --rm --init \
+  -v "/absolute/path/to/vault:/vault:ro" \
+  -v "/absolute/path/to/config.json:/config/rules.json:ro" \
+  -v obsidian-sync-state:/home/node/.obsidian-sync \
+  -e GRAPH_CLIENT_ID=your-app-client-id \
+  -e GRAPH_TENANT_ID=your-tenant-id \
+  -p 8080:8080 \
+  obsidian-one-drive-sync:local
+```
+
+A one-shot dry run, which scans and exits without contacting OneDrive:
+
+```bash
+docker run --rm \
+  -v "/absolute/path/to/vault:/vault:ro" \
+  -v "/absolute/path/to/config.json:/config/rules.json:ro" \
+  obsidian-one-drive-sync:local node dist/main.js --dry-run
+```
+
+### Example Compose usage
+
+`compose.yaml` is checked in for local development. Copy the example env file and fill it in:
+
+```bash
+cp .env.compose.example .env
+```
+
+`.env` must set `HOST_VAULT_PATH`, `HOST_RULES_CONFIG_PATH`, and `GRAPH_CLIENT_ID`; Compose
+fails fast if any of them are missing. Then:
+
+```bash
+docker compose up --build
+curl http://localhost:8080/healthz
+docker compose down
+```
+
+Compose declares the `sync-state` named volume for you, so the token cache and sync state
+persist across `up`/`down` cycles.
+
+### First-run authentication
+
+Authentication uses the device-code flow, which is interactive: it prints a URL and a code that
+you have to enter in a browser. Seed the token cache once with an attached run before you run
+the container detached:
+
+```bash
+docker compose run --rm obsidian-sync node dist/main.js --probe
+```
+
+Because the token cache lives in the `sync-state` volume, later runs reuse it without prompting.
+
+### Running a sync in the container
+
+The default command is watch mode, which only **evaluates and logs** eligibility — it does not
+upload. Uploads are a one-shot operation, so run sync explicitly:
+
+```bash
+docker compose run --rm obsidian-sync node dist/main.js --sync
+```
+
+Add `--dry-run` to preview the upload plan, or `--force-sync` to re-upload everything. To sync
+periodically, drive this command from an external scheduler such as cron or a Kubernetes
+CronJob; built-in scheduling is Phase 4 work.
+
+### Graceful shutdown
+
+The container handles `SIGTERM`, stops the watcher, and drains in-flight evaluations before
+exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-evaluation. Run with
+`--init` (Compose sets `init: true` already) so signals reach the Node process correctly.
+
+### Container troubleshooting
+
+- **`EACCES` writing sync state**: `/home/node/.obsidian-sync` must be writable by the `node`
+  user. Use a named volume rather than a host bind mount, which is likely to be root-owned.
+- **Nothing is detected in watch mode**: on macOS and Windows, bind mounts do not deliver
+  filesystem events into the container — set `WATCH_USE_POLLING=true`. Otherwise confirm the
+  vault bind mount resolves to a real host directory containing `.md` files;
+  `docker compose run --rm obsidian-sync ls /vault` is a quick check. On macOS, a mount under
+  `/tmp` can silently appear empty because Docker Desktop does not share it by default — use a
+  path under your home directory, or add the path under Docker Desktop's
+  **Settings → Resources → File sharing**.
+- **`VAULT_PATH is required` or an invalid vault path**: you overrode a path variable without a
+  matching mount. Leave the path variables at their image defaults unless you also change the
+  mounts.
+- **Config file not applied**: the rules file must be mounted at `/config/rules.json` and
+  contain a top-level `config` object. `HOST_RULES_CONFIG_PATH` must point at the file itself,
+  not its parent directory.
+- **Health port already in use**: set `HEALTH_PORT` in `.env` to change the published host port;
+  the container keeps listening on `8080`.
+- **Re-prompted for a device code every run**: the `sync-state` volume is missing, so the token
+  cache is discarded with the container. Clear tokens deliberately with `node dist/main.js
+  --logout`.
+
 ## Development guide
 
 ### Scripts
@@ -412,13 +573,15 @@ container keeps listening on `8080`, so `HEALTH_PORT=8081` makes the endpoint av
 
 ## Roadmap
 
-Phase 1 is focused on vault monitoring and eligibility decisions. Planned later work includes:
+Vault monitoring, eligibility rules, OneDrive sync, and containerization are implemented.
+Planned later work includes:
 
-- OneDrive publication/sync
-- Microsoft Graph authentication
-- git-backed versioning
-- richer rule management
+- scheduled syncs without an external scheduler
+- richer rule management and advanced filtering
 - optional UI for rule administration
+
+Git-backed versioning of published content was considered and has been dropped from the
+roadmap.
 
 ## Contributing
 

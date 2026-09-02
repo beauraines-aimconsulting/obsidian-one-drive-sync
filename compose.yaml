@@ -11,6 +11,8 @@ services:
       HEALTH_PORT: 8080
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEBOUNCE_DELAY: ${DEBOUNCE_DELAY:-300}
+      WATCH_USE_POLLING: ${WATCH_USE_POLLING:-true}
+      WATCH_POLL_INTERVAL: ${WATCH_POLL_INTERVAL:-1000}
     volumes:
       - ${HOST_VAULT_PATH:?Set HOST_VAULT_PATH in .env}:/vault:ro
       - ${HOST_RULES_CONFIG_PATH:?Set HOST_RULES_CONFIG_PATH in .env}:/config/rules.json:ro
