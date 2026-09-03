@@ -488,6 +488,22 @@ docker compose down
 Compose declares the `sync-state` named volume for you, so the token cache and sync state
 persist across `up`/`down` cycles.
 
+#### Vaults with symlinked folders
+
+If top-level folders in your vault are symlinks that point outside the vault (for example
+`MSFT -> ../.nb/MSFT`), mounting only the vault directory leaves those links dangling inside
+the container, and notes under them are never watched or evaluated. Mount a parent directory
+that contains both the vault and the link targets:
+
+```bash
+HOST_MOUNT_PATH=/Users/you/LocalDocs
+CONTAINER_MOUNT_PATH=/vaultroot
+CONTAINER_VAULT_PATH=/vaultroot/Notes
+```
+
+Relative link targets then resolve inside the container, and vault-relative paths used by the
+rules (`MSFT/**`) still match.
+
 ### First-run authentication
 
 Authentication uses the device-code flow, which is interactive: it prints a URL and a code that

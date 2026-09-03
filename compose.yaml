@@ -13,8 +13,9 @@ services:
       DEBOUNCE_DELAY: ${DEBOUNCE_DELAY:-300}
       WATCH_USE_POLLING: ${WATCH_USE_POLLING:-true}
       WATCH_POLL_INTERVAL: ${WATCH_POLL_INTERVAL:-1000}
+      VAULT_PATH: ${CONTAINER_VAULT_PATH:-/vault}
     volumes:
-      - ${HOST_VAULT_PATH:?Set HOST_VAULT_PATH in .env}:/vault:ro
+      - ${HOST_MOUNT_PATH:-${HOST_VAULT_PATH:?Set HOST_VAULT_PATH in .env}}:${CONTAINER_MOUNT_PATH:-/vault}:ro
       - ${HOST_RULES_CONFIG_PATH:?Set HOST_RULES_CONFIG_PATH in .env}:/config/rules.json:ro
       - sync-state:/home/node/.obsidian-sync
     ports:
