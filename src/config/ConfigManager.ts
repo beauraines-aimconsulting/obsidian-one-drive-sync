@@ -31,29 +31,56 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
   ],
 };
 
+export type EnvSource = Record<string, string | undefined>;
+
+export interface ConfigManagerOptions {
+  /** Directory used to resolve `.env`, `.env.local` and relative config paths. Defaults to `process.cwd()`. */
+  cwd?: string;
+  /** Environment source to read from (and for dotenv to write into). Defaults to `process.env`. */
+  env?: EnvSource;
+  /** Set to false to skip reading `.env` files from disk entirely. Defaults to true. */
+  loadDotenv?: boolean;
+}
+
 export class ConfigManager {
   private config: AppConfig | null = null;
+  private readonly options: ConfigManagerOptions;
+
+  constructor(options: ConfigManagerOptions = {}) {
+    this.options = options;
+  }
 
   async load(): Promise<AppConfig> {
     if (this.config) {
       return this.config;
     }
 
-    // Load environment variables from .env file
-    const envPath = path.join(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      dotenv.config({ path: envPath });
-    }
+    const cwd = this.options.cwd ?? process.cwd();
+    const env: EnvSource = this.options.env ?? process.env;
 
-    // Load .env.local if it exists (overrides .env)
-    const envLocalPath = path.join(process.cwd(), '.env.local');
-    if (fs.existsSync(envLocalPath)) {
-      dotenv.config({ path: envLocalPath });
+    if (this.options.loadDotenv ?? true) {
+      // Load environment variables from .env file
+      const envPath = path.join(cwd, '.env');
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath, processEnv: env as dotenv.DotenvPopulateInput });
+      }
+
+      // Load .env.local if it exists (fills in anything .env did not set)
+      const envLocalPath = path.join(cwd, '.env.local');
+      if (fs.existsSync(envLocalPath)) {
+        dotenv.config({
+          path: envLocalPath,
+          processEnv: env as dotenv.DotenvPopulateInput,
+        });
+      }
     }
 
     // Try to load from config file
     let configFromFile: Partial<AppConfig> = {};
-    const rulesConfigPath = process.env.RULES_CONFIG || DEFAULT_CONFIG.rulesConfig;
+    const rulesConfigSetting = env.RULES_CONFIG || DEFAULT_CONFIG.rulesConfig;
+    const rulesConfigPath = rulesConfigSetting
+      ? path.resolve(cwd, expandTilde(rulesConfigSetting))
+      : undefined;
     if (rulesConfigPath && fs.existsSync(rulesConfigPath)) {
       try {
         const content = fs.readFileSync(rulesConfigPath, 'utf-8');
@@ -66,46 +93,46 @@ export class ConfigManager {
 
     // Merge sources: defaults < file < env vars
     const debounceDelayValue =
-      process.env.DEBOUNCE_DELAY ||
+      env.DEBOUNCE_DELAY ||
       (configFromFile.debounceDelay !== undefined
         ? String(configFromFile.debounceDelay)
         : undefined) ||
       String(DEFAULT_CONFIG.debounceDelay);
     const healthPortValue =
-      process.env.HEALTH_PORT ||
+      env.HEALTH_PORT ||
       (configFromFile.healthPort !== undefined ? String(configFromFile.healthPort) : undefined) ||
       String(DEFAULT_CONFIG.healthPort);
     const pollIntervalValue =
-      process.env.WATCH_POLL_INTERVAL ||
+      env.WATCH_POLL_INTERVAL ||
       (configFromFile.pollInterval !== undefined
         ? String(configFromFile.pollInterval)
         : undefined) ||
       String(DEFAULT_CONFIG.pollInterval);
     const usePolling =
-      process.env.WATCH_USE_POLLING !== undefined
-        ? ['1', 'true', 'yes'].includes(process.env.WATCH_USE_POLLING.trim().toLowerCase())
+      env.WATCH_USE_POLLING !== undefined
+        ? ['1', 'true', 'yes'].includes(env.WATCH_USE_POLLING.trim().toLowerCase())
         : (configFromFile.usePolling ?? DEFAULT_CONFIG.usePolling ?? false);
 
     const merged = {
       ...DEFAULT_CONFIG,
       ...configFromFile,
       vaultPath:
-        process.env.VAULT_PATH ||
+        env.VAULT_PATH ||
         configFromFile.vaultPath ||
         DEFAULT_CONFIG.vaultPath,
       outputPath:
-        process.env.OUTPUT_PATH ||
+        env.OUTPUT_PATH ||
         configFromFile.outputPath ||
         DEFAULT_CONFIG.outputPath,
       rulesConfig:
-        process.env.RULES_CONFIG ||
+        env.RULES_CONFIG ||
         configFromFile.rulesConfig ||
         DEFAULT_CONFIG.rulesConfig,
       oneDriveFolder:
-        process.env.ONEDRIVE_FOLDER ||
+        env.ONEDRIVE_FOLDER ||
         configFromFile.oneDriveFolder ||
         DEFAULT_CONFIG.oneDriveFolder,
-      logLevel: (process.env.LOG_LEVEL ||
+      logLevel: (env.LOG_LEVEL ||
         configFromFile.logLevel ||
         DEFAULT_CONFIG.logLevel) as 'debug' | 'info' | 'warn' | 'error',
       debounceDelay: parseInt(debounceDelayValue, 10),
@@ -133,17 +160,17 @@ export class ConfigManager {
     merged.outputPath = expandTilde(merged.outputPath);
 
     // Parse ignore patterns if provided as env string
-    if (process.env.IGNORE_PATTERNS) {
-      merged.ignorePatterns = process.env.IGNORE_PATTERNS.split(',').map((p) =>
+    if (env.IGNORE_PATTERNS) {
+      merged.ignorePatterns = env.IGNORE_PATTERNS.split(',').map((p) =>
         p.trim()
       );
     }
 
     // Graph API config (optional)
     merged.clientId =
-      process.env.GRAPH_CLIENT_ID || configFromFile.clientId || undefined;
+      env.GRAPH_CLIENT_ID || configFromFile.clientId || undefined;
     merged.tenantId =
-      process.env.GRAPH_TENANT_ID || configFromFile.tenantId || undefined;
+      env.GRAPH_TENANT_ID || configFromFile.tenantId || undefined;
 
     this.config = merged as AppConfig;
     return this.config;

@@ -1,42 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import { ConfigManager } from '../../src/config/ConfigManager.js';
+import { ConfigManager, EnvSource } from '../../src/config/ConfigManager.js';
 
 describe('ConfigManager', () => {
   let configManager: ConfigManager;
-  const tempDir = path.join(process.cwd(), '.test-config');
-  const rulesConfigPath = path.join(tempDir, 'rules.json');
+  // Isolated env source: tests never touch (or leak into) process.env.
+  let env: EnvSource;
+  // Isolated working directory: no ambient `.env` from the repo root is visible.
+  let sandboxDir: string;
+  let tempDir: string;
+  let rulesConfigPath: string;
 
   beforeEach(() => {
-    configManager = new ConfigManager();
-    // Clean up env
-    delete process.env.VAULT_PATH;
-    delete process.env.OUTPUT_PATH;
-    delete process.env.ONEDRIVE_FOLDER;
-    delete process.env.RULES_CONFIG;
-    delete process.env.LOG_LEVEL;
-    delete process.env.DEBOUNCE_DELAY;
-    delete process.env.HEALTH_PORT;
-    delete process.env.WATCH_USE_POLLING;
-    delete process.env.WATCH_POLL_INTERVAL;
-    delete process.env.IGNORE_PATTERNS;
-    delete process.env.RULES_CONFIG;
-
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    sandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-manager-'));
+    tempDir = path.join(sandboxDir, 'fixtures');
+    rulesConfigPath = path.join(tempDir, 'rules.json');
+    env = {};
+    configManager = new ConfigManager({ cwd: sandboxDir, env });
   });
 
   afterEach(() => {
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true });
-    }
+    fs.rmSync(sandboxDir, { recursive: true, force: true });
   });
 
   it('should load config from environment variables', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.LOG_LEVEL = 'debug';
-    process.env.DEBOUNCE_DELAY = '500';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.LOG_LEVEL = 'debug';
+    env.DEBOUNCE_DELAY = '500';
 
     const config = await configManager.load();
 
@@ -49,7 +42,7 @@ describe('ConfigManager', () => {
   });
 
   it('should throw error when VAULT_PATH is missing', async () => {
-    process.env.OUTPUT_PATH = '/test/output';
+    env.OUTPUT_PATH = '/test/output';
 
     await expect(configManager.load()).rejects.toThrow(
       'VAULT_PATH is required'
@@ -57,7 +50,7 @@ describe('ConfigManager', () => {
   });
 
   it('should throw error when OUTPUT_PATH is missing', async () => {
-    process.env.VAULT_PATH = '/test/vault';
+    env.VAULT_PATH = '/test/vault';
 
     await expect(configManager.load()).rejects.toThrow(
       'OUTPUT_PATH is required'
@@ -65,8 +58,8 @@ describe('ConfigManager', () => {
   });
 
   it('should apply default values', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
 
     const config = await configManager.load();
 
@@ -81,9 +74,9 @@ describe('ConfigManager', () => {
   });
 
   it('should parse ignore patterns from env', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.IGNORE_PATTERNS = '.git/**, .obsidian/**, custom/**';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.IGNORE_PATTERNS = '.git/**, .obsidian/**, custom/**';
 
     const config = await configManager.load();
 
@@ -93,9 +86,9 @@ describe('ConfigManager', () => {
   });
 
   it('should preserve a OneDrive folder as a remote path', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.ONEDRIVE_FOLDER = '~/Shared Notes';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.ONEDRIVE_FOLDER = '~/Shared Notes';
 
     const config = await configManager.load();
 
@@ -103,9 +96,9 @@ describe('ConfigManager', () => {
   });
 
   it('should read health port from the environment', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.HEALTH_PORT = '9090';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.HEALTH_PORT = '9090';
 
     const config = await configManager.load();
 
@@ -113,9 +106,9 @@ describe('ConfigManager', () => {
   });
 
   it('should reject an invalid health port', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.HEALTH_PORT = '70000';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.HEALTH_PORT = '70000';
 
     await expect(configManager.load()).rejects.toThrow(
       'HEALTH_PORT must be an integer between 1 and 65535'
@@ -123,8 +116,8 @@ describe('ConfigManager', () => {
   });
 
   it('should default polling off with a 1000ms interval', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
 
     const config = await configManager.load();
 
@@ -133,10 +126,10 @@ describe('ConfigManager', () => {
   });
 
   it('should enable polling from the environment', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.WATCH_USE_POLLING = 'true';
-    process.env.WATCH_POLL_INTERVAL = '2500';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.WATCH_USE_POLLING = 'true';
+    env.WATCH_POLL_INTERVAL = '2500';
 
     const config = await configManager.load();
 
@@ -145,9 +138,9 @@ describe('ConfigManager', () => {
   });
 
   it('should treat non-truthy polling values as disabled', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.WATCH_USE_POLLING = 'false';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.WATCH_USE_POLLING = 'false';
 
     const config = await configManager.load();
 
@@ -155,9 +148,9 @@ describe('ConfigManager', () => {
   });
 
   it('should reject an invalid poll interval', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
-    process.env.WATCH_POLL_INTERVAL = '0';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.WATCH_POLL_INTERVAL = '0';
 
     await expect(configManager.load()).rejects.toThrow(
       'WATCH_POLL_INTERVAL must be a positive integer (milliseconds)'
@@ -165,8 +158,8 @@ describe('ConfigManager', () => {
   });
 
   it('should cache config after loading', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
 
     const config1 = await configManager.load();
     const config2 = await configManager.load();
@@ -175,13 +168,13 @@ describe('ConfigManager', () => {
   });
 
   it('should allow reload', async () => {
-    process.env.VAULT_PATH = '/test/vault1';
-    process.env.OUTPUT_PATH = '/test/output1';
+    env.VAULT_PATH = '/test/vault1';
+    env.OUTPUT_PATH = '/test/output1';
 
     const config1 = await configManager.load();
     expect(config1.vaultPath).toBe('/test/vault1');
 
-    process.env.VAULT_PATH = '/test/vault2';
+    env.VAULT_PATH = '/test/vault2';
     const config2 = await configManager.reload();
 
     expect(config2.vaultPath).toBe('/test/vault2');
@@ -194,8 +187,8 @@ describe('ConfigManager', () => {
   });
 
   it('should return config via loadAndGet', async () => {
-    process.env.VAULT_PATH = '/test/vault';
-    process.env.OUTPUT_PATH = '/test/output';
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
 
     const config = await configManager.loadAndGet();
 
@@ -218,7 +211,7 @@ describe('ConfigManager', () => {
       })
     );
 
-    process.env.RULES_CONFIG = rulesConfigPath;
+    env.RULES_CONFIG = rulesConfigPath;
 
     const config = await configManager.load();
 
@@ -245,12 +238,12 @@ describe('ConfigManager', () => {
       })
     );
 
-    process.env.RULES_CONFIG = rulesConfigPath;
-    process.env.VAULT_PATH = '/env/vault';
-    process.env.OUTPUT_PATH = '/env/output';
-    process.env.ONEDRIVE_FOLDER = 'Environment Folder';
-    process.env.LOG_LEVEL = 'error';
-    process.env.DEBOUNCE_DELAY = '125';
+    env.RULES_CONFIG = rulesConfigPath;
+    env.VAULT_PATH = '/env/vault';
+    env.OUTPUT_PATH = '/env/output';
+    env.ONEDRIVE_FOLDER = 'Environment Folder';
+    env.LOG_LEVEL = 'error';
+    env.DEBOUNCE_DELAY = '125';
 
     const config = await configManager.load();
 
@@ -262,19 +255,94 @@ describe('ConfigManager', () => {
   });
 
   it('should reload config after env changes', async () => {
-    process.env.VAULT_PATH = '/test/vault1';
-    process.env.OUTPUT_PATH = '/test/output1';
+    env.VAULT_PATH = '/test/vault1';
+    env.OUTPUT_PATH = '/test/output1';
 
     const config1 = await configManager.load();
     expect(config1.vaultPath).toBe('/test/vault1');
 
-    process.env.VAULT_PATH = '/test/vault2';
-    process.env.OUTPUT_PATH = '/test/output2';
+    env.VAULT_PATH = '/test/vault2';
+    env.OUTPUT_PATH = '/test/output2';
 
     const config2 = await configManager.reload();
 
     expect(config2.vaultPath).toBe('/test/vault2');
     expect(config2.outputPath).toBe('/test/output2');
     expect(config2).not.toBe(config1);
+  });
+
+  it('should load a .env file from the injected working directory', async () => {
+    fs.writeFileSync(
+      path.join(sandboxDir, '.env'),
+      'VAULT_PATH=/dotenv/vault\nOUTPUT_PATH=/dotenv/output\nHEALTH_PORT=8123\n'
+    );
+
+    const config = await configManager.load();
+
+    expect(config.vaultPath).toBe('/dotenv/vault');
+    expect(config.healthPort).toBe(8123);
+    expect(process.env.VAULT_PATH).toBeUndefined();
+  });
+
+  it('should fill gaps from .env.local without overwriting existing values', async () => {
+    fs.writeFileSync(
+      path.join(sandboxDir, '.env'),
+      'VAULT_PATH=/dotenv/vault\nOUTPUT_PATH=/dotenv/output\n'
+    );
+    fs.writeFileSync(
+      path.join(sandboxDir, '.env.local'),
+      'VAULT_PATH=/local/vault\nLOG_LEVEL=warn\n'
+    );
+
+    const config = await configManager.load();
+
+    // dotenv never overwrites a value that is already set.
+    expect(config.vaultPath).toBe('/dotenv/vault');
+    expect(config.logLevel).toBe('warn');
+  });
+
+  it('should skip dotenv loading when disabled', async () => {
+    fs.writeFileSync(path.join(sandboxDir, '.env'), 'HEALTH_PORT=8123\n');
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+
+    const config = await new ConfigManager({
+      cwd: sandboxDir,
+      env,
+      loadDotenv: false,
+    }).load();
+
+    expect(config.healthPort).toBe(8080);
+  });
+
+  it('should not read the ambient process environment when an env is injected', async () => {
+    process.env.CONFIG_MANAGER_TEST_VAULT = '/ambient/vault';
+    try {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+
+      const config = await configManager.load();
+
+      expect(config.vaultPath).toBe('/test/vault');
+      expect(env.CONFIG_MANAGER_TEST_VAULT).toBeUndefined();
+    } finally {
+      delete process.env.CONFIG_MANAGER_TEST_VAULT;
+    }
+  });
+
+  it('should resolve a relative rules config against the injected working directory', async () => {
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(
+      rulesConfigPath,
+      JSON.stringify({
+        config: { vaultPath: '/file/vault', outputPath: '/file/output' },
+      })
+    );
+
+    env.RULES_CONFIG = path.join('fixtures', 'rules.json');
+
+    const config = await configManager.load();
+
+    expect(config.vaultPath).toBe('/file/vault');
   });
 });

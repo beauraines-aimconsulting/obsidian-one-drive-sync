@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigManager } from '../../src/config/ConfigManager.js';
+import { ConfigManager, EnvSource } from '../../src/config/ConfigManager.js';
 import { PublicationService } from '../../src/publications/PublicationService.js';
 import { FrontmatterRule } from '../../src/rules/implementations/FrontmatterRule.js';
 import { CategoryRule } from '../../src/rules/implementations/CategoryRule.js';
@@ -94,10 +94,12 @@ describe('integration workflows', { timeout: 15000 }, () => {
       )
     );
 
-    process.env.RULES_CONFIG = configPath;
-    process.env.LOG_LEVEL = 'debug';
+    const env: EnvSource = {
+      RULES_CONFIG: configPath,
+      LOG_LEVEL: 'debug',
+    };
 
-    const config = await new ConfigManager().load();
+    const config = await new ConfigManager({ cwd: tempRoot, env }).load();
 
     expect(config.vaultPath).toBe(vaultDir);
     expect(config.outputPath).toBe(outputDir);
