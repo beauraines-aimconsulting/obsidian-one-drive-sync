@@ -30,4 +30,6 @@ export interface PublicationRuleConfig {
 export interface CacheEntry {
   result: EligibilityResult;
   timestamp: number;
+  /** Hash of the evaluated input; a mismatch invalidates the entry. */
+  contentHash: string;
 }

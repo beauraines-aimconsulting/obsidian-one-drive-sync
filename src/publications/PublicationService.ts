@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { EventEmitter } from '../utils/EventEmitter.js';
 import { Logger } from '../utils/Logger.js';
 import { FrontmatterParser } from '../parser/FrontmatterParser.js';
@@ -14,6 +15,15 @@ import type {
   CacheEntry,
   RuleResult,
 } from './types.js';
+
+function hashInput(...parts: string[]): string {
+  const hash = createHash('sha1');
+  for (const part of parts) {
+    hash.update(part);
+    hash.update('\u0000');
+  }
+  return hash.digest('hex');
+}
 
 export class PublicationService extends EventEmitter<EligibilityResult> {
   private logger: Logger;
@@ -53,9 +63,11 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     filepath: string,
     content: string
   ): Promise<EligibilityResult> {
+    const contentHash = hashInput(content);
+
     // Check cache first
     if (this.enableCache) {
-      const cached = this.getCachedResult(filepath);
+      const cached = this.getCachedResult(filepath, contentHash);
       if (cached) {
         this.logger.debug(`Using cached result for ${filepath}`);
         return cached;
@@ -70,7 +82,8 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     return this.evaluateFileWithFrontmatter(
       filepath,
       frontmatter,
-      parseResult.content
+      parseResult.content,
+      contentHash
     );
   }
 
@@ -81,11 +94,15 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   async evaluateFileWithFrontmatter(
     filepath: string,
     frontmatter: Frontmatter,
-    content?: string
+    content?: string,
+    precomputedHash?: string
   ): Promise<EligibilityResult> {
+    const contentHash =
+      precomputedHash ?? hashInput(JSON.stringify(frontmatter ?? {}), content ?? '');
+
     // Check cache first
     if (this.enableCache) {
-      const cached = this.getCachedResult(filepath);
+      const cached = this.getCachedResult(filepath, contentHash);
       if (cached) {
         this.logger.debug(`Using cached result for ${filepath}`);
         return cached;
@@ -126,7 +143,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
 
     // Cache the result
     if (this.enableCache) {
-      this.cacheResult(filepath, result);
+      this.cacheResult(filepath, result, contentHash);
     }
 
     // Emit event
@@ -248,10 +265,17 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   /**
    * Get cached result for a file.
    */
-  private getCachedResult(filepath: string): EligibilityResult | undefined {
+  private getCachedResult(
+    filepath: string,
+    contentHash: string
+  ): EligibilityResult | undefined {
     const entry = this.cache.get(filepath);
-    if (entry) {
+    if (entry && entry.contentHash === contentHash) {
       return entry.result;
+    }
+    if (entry) {
+      // Content changed since the last evaluation — drop the stale entry
+      this.cache.delete(filepath);
     }
     return undefined;
   }
@@ -259,7 +283,11 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   /**
    * Cache an evaluation result.
    */
-  private cacheResult(filepath: string, result: EligibilityResult): void {
+  private cacheResult(
+    filepath: string,
+    result: EligibilityResult,
+    contentHash: string
+  ): void {
     // Implement LRU cache eviction if necessary
     if (this.cache.size >= this.cacheSize) {
       // Remove oldest entry
@@ -272,6 +300,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     this.cache.set(filepath, {
       result,
       timestamp: Date.now(),
+      contentHash,
     });
   }
 }

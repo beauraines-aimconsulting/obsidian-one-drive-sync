@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PublicationService } from '../../src/publications/PublicationService.js';
 import type { EligibilityResult } from '../../src/publications/types.js';
 import { Rule } from '../../src/rules/types.js';
+import { TagRule as WhitelistTagRule } from '../../src/rules/implementations/TagRule.js';
 
 // Mock Rule implementation for testing
 class MockPassRule extends Rule {
@@ -484,6 +485,22 @@ private: true
       const result2 = await service.evaluateFile(filepath, content);
 
       expect(result1.evaluatedAt).toBe(result2.evaluatedAt);
+    });
+
+    it('should re-evaluate when file content changes', async () => {
+      service.addRule(
+        'tags',
+        new WhitelistTagRule({ whitelist: ['published'], requireAny: true })
+      );
+
+      const filepath = '/test/file.md';
+      const before = await service.evaluateFile(filepath, 'no tags here');
+      expect(before.eligible).toBe(false);
+
+      const after = await service.evaluateFile(filepath, '#published now tagged');
+
+      expect(after.eligible).toBe(true);
+      expect(after.reason).not.toBe(before.reason);
     });
 
     it('should return different results for different files', async () => {
