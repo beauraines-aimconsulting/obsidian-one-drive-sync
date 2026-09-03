@@ -132,6 +132,8 @@
 2. Support config file (config.json or config.ts)
 3. Validate required settings
 4. Provide sensible defaults
+5. Accept injected `cwd`, `env`, and `loadDotenv` options so config loading can be pointed at
+   an explicit directory and environment source rather than the ambient process (#77)
 
 **Key Files:**
 - src/config/ConfigManager.ts
@@ -248,7 +250,7 @@ DEBOUNCE_DELAY=300
 **Phase 1 — complete.** Project scaffolding, configuration system, logging & utilities,
 frontmatter parser, inline tag parser, file filter, publication rules, rule engine, vault
 watcher, vault service, publication service, CLI entry point, unit tests, integration tests,
-and documentation are all merged. The suite runs 394 tests across 24 files; build, tests, and
+and documentation are all merged. The suite runs 414 tests across 24 files; build, tests, and
 lint are green.
 
 **Phase 2 (OneDrive sync + Graph auth) — complete, with git versioning dropped.** Merged work
@@ -259,16 +261,29 @@ change detection, the sync service, and the CLI `--sync`, `--force-sync`, `--dry
 
 **Phase 3 (containerization) — complete.** Multi-stage Dockerfile running as non-root, local
 Docker Compose setup, health endpoint, graceful SIGTERM shutdown with in-flight evaluation
-draining, CI workflows for build/test and container image, and container documentation.
+draining, CI workflows for build/test and container image, and container documentation. The
+sync-state volume permission issue (#73) was fixed in #75 and is closed.
 
-**Remaining work:**
-- Frontmatter parse error handling: unhelpful YAMLException dumps, missing filename, silent
-  sync exclusion (#63)
-- CI: bump GitHub Actions to latest majors (#66)
-- Verify and close the sync-state volume permission issue (#73)
-- Phase 4: web UI, scheduled syncs, advanced filtering (#25–#28)
+**Configuration test isolation (#77) — complete.** `ConfigManager` now accepts injected
+`cwd`, `env`, and `loadDotenv` options, so config loading no longer implicitly reads the
+developer's real `.env` from `process.cwd()`. Tests run against a temp sandbox and an isolated
+env object, which removed four environment-dependent local test failures (#78).
 
-**Current repository state:** `main` is up to date with merged PRs through #72.
+**Remaining work, in suggested order:**
+
+1. **#63 — Frontmatter parse error handling** (bug). YAMLException dumps are unhelpful, the
+   offending filename is missing, and affected notes are silently excluded from sync. Highest
+   user impact of the open items.
+2. **#66 — CI: bump GitHub Actions to latest majors.** Clears Node 20 deprecation warnings;
+   mechanical and low risk.
+3. **#76 — Make note exclusions configurable** instead of hardcoded in `DEFAULT_CONFIG`.
+   Simpler now that `ConfigManager` takes explicit options.
+4. **Phase 4 epic (#25):**
+   - **#27 Scheduled syncs** — smallest of the three and a natural follow-on to `--watch`.
+   - **#28 Advanced filtering and rule options** — builds on the existing rules engine.
+   - **#26 Web UI for managing rules** — largest; best deferred until the above settle.
+
+**Current repository state:** `main` is up to date with merged PRs through #78.
 
 ### Scope change: git versioning dropped
 
