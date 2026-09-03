@@ -155,7 +155,11 @@ Configuration is loaded in this order:
 - `usePolling`: `false`
 - `pollInterval`: `1000`
 - `ignorePatterns`: `.git/**`, `.obsidian/**`, `.trash/**`, `node_modules/**`, `Templates/**`,
-  `.DS_Store`
+  `.DS_Store`, `*.bookmark.md`, `**/*.bookmark.md`
+
+> Setting `IGNORE_PATTERNS` or `ignorePatterns` **replaces** this list rather than adding to it —
+> re-include the defaults you still want. Both `*.bookmark.md` and `**/*.bookmark.md` are needed:
+> the first matches vault-root files, the second matches files in subfolders.
 
 ### Notes
 

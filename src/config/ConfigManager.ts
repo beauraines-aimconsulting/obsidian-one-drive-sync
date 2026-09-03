@@ -26,6 +26,8 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
     'node_modules/**',
     'Templates/**',
     '.DS_Store',
+    '*.bookmark.md',
+    '**/*.bookmark.md',
   ],
 };
 

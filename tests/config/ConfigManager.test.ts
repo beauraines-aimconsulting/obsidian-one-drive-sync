@@ -76,6 +76,8 @@ describe('ConfigManager', () => {
     expect(config.oneDriveFolder).toBe('ObsidianPublished');
     expect(config.ignorePatterns).toContain('.git/**');
     expect(config.ignorePatterns).toContain('.obsidian/**');
+    expect(config.ignorePatterns).toContain('*.bookmark.md');
+    expect(config.ignorePatterns).toContain('**/*.bookmark.md');
   });
 
   it('should parse ignore patterns from env', async () => {
