@@ -39,4 +39,4 @@ EXPOSE 8080
 
 USER node
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/main.js", "--sync", "--watch"]

@@ -174,4 +174,91 @@ describe('SyncService', () => {
     expect(result.totalEligible).toBe(0);
     expect(result.uploaded).toHaveLength(0);
   });
+
+  describe('syncFile', () => {
+    it('uploads a single eligible file', async () => {
+      createVaultFile('AIM/note.md', '# Note');
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 'item-1', size: 6 }),
+      });
+
+      const service = createSyncService();
+      const result = await service.syncFile('AIM/note.md');
+
+      expect(result.action).toBe('uploaded');
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+
+    it('skips a file whose content is unchanged', async () => {
+      createVaultFile('AIM/note.md', '# Note');
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 'item-1', size: 6 }),
+      });
+
+      const service = createSyncService();
+      await service.syncFile('AIM/note.md');
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockClear();
+
+      const second = await service.syncFile('AIM/note.md');
+
+      expect(second.action).toBe('skipped');
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('removes a previously synced file that was deleted from the vault', async () => {
+      createVaultFile('AIM/gone.md', '# Gone');
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 'item-gone', size: 6 }),
+      });
+
+      const service = createSyncService();
+      await service.syncFile('AIM/gone.md');
+
+      fs.rmSync(path.join(tempVault, 'AIM/gone.md'));
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+
+      const result = await service.syncFile('AIM/gone.md');
+
+      expect(result.action).toBe('removed');
+    });
+
+    it('ignores a deleted file that was never synced', async () => {
+      globalThis.fetch = vi.fn();
+
+      const service = createSyncService();
+      const result = await service.syncFile('AIM/never-existed.md');
+
+      expect(result.action).toBe('ignored');
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('reports failure instead of throwing when upload fails', async () => {
+      createVaultFile('AIM/bad.md', '# Bad');
+
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'));
+
+      const service = createSyncService();
+      const result = await service.syncFile('AIM/bad.md');
+
+      expect(result.action).toBe('failed');
+      expect(result.error).toContain('network down');
+    });
+
+    it('does not upload in dry-run mode', async () => {
+      createVaultFile('AIM/note.md', '# Note');
+      globalThis.fetch = vi.fn();
+
+      const service = createSyncService({ dryRun: true });
+      const result = await service.syncFile('AIM/note.md');
+
+      expect(result.action).toBe('uploaded');
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+  });
 });

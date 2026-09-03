@@ -6,6 +6,7 @@ export interface CliOptions {
   logout: boolean;
   sync: boolean;
   forceSync: boolean;
+  watch: boolean;
 }
 
 export interface CliRunResult {

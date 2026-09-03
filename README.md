@@ -331,6 +331,8 @@ Options:
   --config <path>  Path to config.json
   --dry-run        Scan once and exit (or preview sync without uploading)
   --sync           Sync eligible files to OneDrive
+  --watch          Keep running and sync changes as they happen
+                   (combine with --sync for an initial full sync)
   --force-sync     Re-upload all eligible files regardless of changes
   --probe          Test Graph API connectivity and permissions
   --logout         Clear cached authentication tokens
@@ -372,7 +374,7 @@ curl http://localhost:8080/healthz
 - Returns `200` while the vault watcher is active
 - Returns `503` if the watcher is not active, so an orchestrator can restart the container
 - Returns `404` for any other path
-- Only runs in watch mode — `--dry-run`, `--sync`, and `--probe` exit instead of serving
+- Only runs in watch mode — `--dry-run`, one-shot `--sync`, and `--probe` exit instead of serving
 
 ### Changing the port
 
@@ -522,16 +524,26 @@ Because the token cache lives in the `sync-state` volume, later runs reuse it wi
 
 ### Running a sync in the container
 
-The default command is watch mode, which only **evaluates and logs** eligibility — it does not
-upload. Uploads are a one-shot operation, so run sync explicitly:
+The default command is `--sync --watch`: it performs a full sync, then stays running and uploads
+each change as it happens. Start it in the background with:
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+To run a one-shot sync that exits when finished, omit `--watch`:
 
 ```bash
 docker compose run --rm obsidian-sync node dist/main.js --sync
 ```
 
-Add `--dry-run` to preview the upload plan, or `--force-sync` to re-upload everything. To sync
-periodically, drive this command from an external scheduler such as cron or a Kubernetes
-CronJob; built-in scheduling is Phase 4 work.
+Add `--dry-run` to preview the plan, or `--force-sync` to re-upload everything. Passing `--watch`
+without `--sync` gives the old evaluate-only behaviour (logs eligibility, uploads nothing).
+
+> The first run in watch mode still needs an interactive device-code login. Do that once with
+> `docker compose run --rm obsidian-sync node dist/main.js --probe`; the cached token in the
+> `sync-state` volume lets `docker compose up -d` start unattended afterwards.
 
 ### Graceful shutdown
 

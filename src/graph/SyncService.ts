@@ -29,6 +29,14 @@ export interface SyncResult {
   duration: number;
 }
 
+export type SyncFileAction = 'uploaded' | 'skipped' | 'removed' | 'ignored' | 'failed';
+
+export interface SyncFileResult {
+  action: SyncFileAction;
+  filepath: string;
+  error?: string;
+}
+
 export class SyncService {
   private publicationService: PublicationService;
   private authProvider: GraphAuthProvider;
@@ -153,6 +161,106 @@ export class SyncService {
 
     result.duration = Date.now() - startTime;
     return result;
+  }
+
+  /**
+   * Sync a single file after a watcher event.
+   *
+   * Uploads it when it is eligible and changed, and removes it from OneDrive
+   * when it was deleted or is no longer eligible. A fresh token is requested
+   * per call so long-running watch sessions survive token expiry.
+   */
+  async syncFile(
+    relativePath: string,
+    onProgress?: (message: string) => void
+  ): Promise<SyncFileResult> {
+    const log = (msg: string) => onProgress?.(msg);
+    const absolutePath = path.join(this.options.vaultPath, relativePath);
+
+    let content: string | null = null;
+    try {
+      content = fs.readFileSync(absolutePath, 'utf-8');
+    } catch {
+      // Missing file means it was deleted between the event and this read.
+      content = null;
+    }
+
+    let eligible = false;
+    if (content !== null) {
+      const evaluation = await this.publicationService.evaluateFile(relativePath, content);
+      eligible = evaluation.eligible;
+    }
+
+    if (!eligible) {
+      const entry = this.syncState.getEntry(relativePath);
+      if (!entry) return { action: 'ignored', filepath: relativePath };
+
+      if (this.options.dryRun) {
+        log(`   [dry-run] Would remove: ${relativePath}`);
+        return { action: 'removed', filepath: relativePath };
+      }
+
+      log(`   🗑️  Removing: ${relativePath}`);
+      try {
+        const client = await this.createClient();
+        const deleted = await client.deleteFile(entry.oneDriveItemId);
+        if (!deleted) {
+          return { action: 'failed', filepath: relativePath, error: 'Delete failed' };
+        }
+        this.syncState.removeEntry(relativePath);
+        return { action: 'removed', filepath: relativePath };
+      } catch (error) {
+        return {
+          action: 'failed',
+          filepath: relativePath,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+
+    const fileContent = content as string;
+    if (!this.options.forceSync && !this.syncState.hasChanged(relativePath, fileContent)) {
+      return { action: 'skipped', filepath: relativePath };
+    }
+
+    if (this.options.dryRun) {
+      log(`   [dry-run] Would upload: ${relativePath}`);
+      return { action: 'uploaded', filepath: relativePath };
+    }
+
+    log(`   ⬆️  Uploading: ${relativePath}`);
+    try {
+      const client = await this.createClient();
+      const uploadResult = await client.uploadContent(fileContent, relativePath);
+      if (uploadResult.success && uploadResult.itemId) {
+        this.syncState.markSynced(
+          relativePath,
+          fileContent,
+          uploadResult.itemId,
+          uploadResult.oneDrivePath
+        );
+        return { action: 'uploaded', filepath: relativePath };
+      }
+      return {
+        action: 'failed',
+        filepath: relativePath,
+        error: uploadResult.error ?? 'Unknown error',
+      };
+    } catch (error) {
+      return {
+        action: 'failed',
+        filepath: relativePath,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async createClient(): Promise<OneDriveClient> {
+    const accessToken = await this.authProvider.getToken();
+    return new OneDriveClient({
+      targetFolder: this.options.targetFolder,
+      accessToken,
+    });
   }
 
   private async walkMarkdown(dir: string): Promise<string[]> {

@@ -10,6 +10,7 @@ describe('CLI main', () => {
       logout: false,
       sync: false,
       forceSync: false,
+      watch: false,
       configPath: 'custom.json',
     });
   });
@@ -22,8 +23,19 @@ describe('CLI main', () => {
       logout: false,
       sync: false,
       forceSync: false,
+      watch: false,
       configPath: undefined,
     });
+  });
+
+  it('parses watch and sync flags together', () => {
+    const options = parseArgs(['--sync', '--watch']);
+    expect(options.sync).toBe(true);
+    expect(options.watch).toBe(true);
+  });
+
+  it('rejects unknown options instead of ignoring them', () => {
+    expect(() => parseArgs(['--nope'])).toThrow('Unknown option: --nope');
   });
 
   it('returns usage text', () => {
