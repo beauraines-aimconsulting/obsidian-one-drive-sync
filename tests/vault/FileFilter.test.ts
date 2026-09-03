@@ -187,5 +187,17 @@ describe('FileFilter', () => {
       expect(customFilter.filter('temp/file.md').allowed).toBe(false);
       expect(customFilter.filter('notes/file.md').allowed).toBe(true);
     });
+
+    it('should exclude bookmark notes at any depth', () => {
+      const bookmarkFilter = new FileFilter({
+        patterns: ['*.bookmark.md', '**/*.bookmark.md'],
+      });
+
+      expect(bookmarkFilter.filter('Some Page.bookmark.md').allowed).toBe(false);
+      expect(bookmarkFilter.filter('AIM/Some Page.bookmark.md').allowed).toBe(false);
+      expect(bookmarkFilter.filter('MSFT/nested/deep/Page.bookmark.md').allowed).toBe(false);
+      expect(bookmarkFilter.filter('AIM/Mike Mallahan 2026-09-02.md').allowed).toBe(true);
+      expect(bookmarkFilter.filter('AIM/bookmark.md').allowed).toBe(true);
+    });
   });
 });

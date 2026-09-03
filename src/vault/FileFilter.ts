@@ -11,7 +11,7 @@ function globToRegex(glob: string): RegExp {
 
   // Escape special regex characters except glob patterns
   regex = regex
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+    .replace(/[.+^${}()|[\]\\*?]/g, '\\$&') // Escape regex special chars
     .replace(/\\\*/g, '[^/]*') // * -> [^/]* (match anything except /)
     .replace(/\\\?/g, '[^/]'); // ? -> [^/] (match any char except /)
 
