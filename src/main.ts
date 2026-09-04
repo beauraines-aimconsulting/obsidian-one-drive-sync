@@ -141,6 +141,12 @@ async function runSync(
   console.log(`  ⬆️  Uploaded: ${result.uploaded.length}`);
   console.log(`  ⏭️  Skipped (unchanged): ${result.skipped.length}`);
   console.log(`  🗑️  Removed: ${result.removed.length}`);
+  if (result.parseErrors.length > 0) {
+    console.log(`  ⚠️  Skipped (frontmatter parse errors): ${result.parseErrors.length}`);
+    for (const p of result.parseErrors) {
+      console.log(`     ${p.filepath}: ${p.reason}`);
+    }
+  }
   if (result.failed.length > 0) {
     console.log(`  ❌ Failed: ${result.failed.length}`);
     for (const f of result.failed) {
@@ -224,7 +230,8 @@ async function main(): Promise<number> {
       return;
     }
     const result = await publicationService.evaluateFile(relativePath, fs.readFileSync(filepath, 'utf-8'));
-    console.log(`${result.eligible ? '✅' : '⛔'} ${relativePath} - ${result.reason}`);
+    const icon = result.parseError ? '⚠️' : result.eligible ? '✅' : '⛔';
+    console.log(`${icon} ${relativePath} - ${result.reason}`);
   };
   console.log(`📂 Monitoring vault: ${config.vaultPath}`);
   if (syncService) {

@@ -66,6 +66,77 @@ describe('SyncService', () => {
     expect(result.totalEligible).toBe(1);
     expect(result.uploaded).toHaveLength(1);
     expect(result.failed).toHaveLength(0);
+    expect(result.parseErrors).toHaveLength(0);
+  });
+
+  it('should report files with malformed frontmatter separately from uploads', async () => {
+    createVaultFile('notes/good.md', '---\npublish: true\n---\n# Good');
+    createVaultFile(
+      'Templates/Daily Note.md',
+      '---\ncreated: {{date}} {{time}}:00\nTQ_show: false\n---\n# Daily'
+    );
+
+    const messages: string[] = [];
+    const service = createSyncService({ dryRun: true });
+    const result = await service.sync((msg) => messages.push(msg));
+
+    // The broken file is excluded from the sync rather than uploaded blindly.
+    expect(result.totalEligible).toBe(1);
+    expect(result.uploaded).toEqual(['notes/good.md']);
+
+    expect(result.parseErrors).toHaveLength(1);
+    expect(result.parseErrors[0].filepath).toBe('Templates/Daily Note.md');
+    expect(result.parseErrors[0].reason).toContain('Frontmatter parse error');
+    expect(messages.some((m) => m.includes('Templates/Daily Note.md'))).toBe(true);
+  });
+
+  it('should not delete an already-synced file when its frontmatter breaks', async () => {
+    // Publish the file cleanly first so it is tracked in sync state.
+    createVaultFile('notes/note.md', '---\npublish: true\n---\n# Note');
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'item-1', size: 10 }),
+    });
+
+    const service = createSyncService();
+    const first = await service.sync();
+    expect(first.uploaded).toEqual(['notes/note.md']);
+
+    // Now break the frontmatter, as an unrendered template placeholder would.
+    createVaultFile('notes/note.md', '---\ncreated: {{date}} {{time}}:00\nx: 1\n---\n# Note');
+
+    const deleteCalls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') deleteCalls.push(String(url));
+      return Promise.resolve({ ok: true, json: async () => ({ id: 'item-1', size: 10 }) });
+    }) as unknown as typeof globalThis.fetch;
+
+    const second = await service.sync();
+
+    // The last good version must stay published — a YAML typo is not a request
+    // to unpublish.
+    expect(deleteCalls).toEqual([]);
+    expect(second.removed).toEqual([]);
+    expect(second.parseErrors).toHaveLength(1);
+  });
+
+  it('should ignore, not remove, a watched file whose frontmatter breaks', async () => {
+    createVaultFile('notes/note.md', '---\npublish: true\n---\n# Note');
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'item-1', size: 10 }),
+    });
+
+    const service = createSyncService();
+    await service.sync();
+
+    createVaultFile('notes/note.md', '---\ncreated: {{date}} {{time}}:00\nx: 1\n---\n# Note');
+
+    const result = await service.syncFile('notes/note.md');
+
+    expect(result.action).toBe('ignored');
   });
 
   it('should upload files to OneDrive', async () => {

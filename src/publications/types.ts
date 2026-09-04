@@ -1,4 +1,6 @@
-export type { Frontmatter } from '../parser/types.js';
+export type { Frontmatter, FrontmatterParseError } from '../parser/types.js';
+
+import type { FrontmatterParseError } from '../parser/types.js';
 
 export interface PublicationServiceConfig {
   enableCache?: boolean;
@@ -20,6 +22,12 @@ export interface EligibilityResult {
   reason: string;
   rules: RuleResult[];
   evaluatedAt: number;
+  /**
+   * Set when the file's YAML frontmatter could not be parsed. Such files are
+   * always ineligible, but are reported distinctly from files that were
+   * correctly evaluated and simply failed a rule.
+   */
+  parseError?: FrontmatterParseError;
 }
 
 export interface PublicationRuleConfig {
