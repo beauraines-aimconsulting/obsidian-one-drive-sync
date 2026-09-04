@@ -4,6 +4,9 @@
   "description": "Selectively publish Obsidian vault content to Microsoft 365 Copilot-accessible knowledge repository",
   "main": "dist/main.js",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
