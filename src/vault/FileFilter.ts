@@ -6,8 +6,13 @@ import type { FilterOptions, FileFilterResult } from './types.js';
  * Supports: *, **, ?, [abc], etc.
  */
 function globToRegex(glob: string): RegExp {
+  // A leading `**/` should also match paths with no directory prefix, so
+  // `**/*.bookmark.md` matches vault-root files as well as nested ones.
+  const leadingGlobstar = glob.startsWith('**/');
+  const rest = leadingGlobstar ? glob.slice(3) : glob;
+
   // Handle ** first - it should match everything including /
-  let regex = glob.replace(/\*\*/g, '___DOUBLE_STAR___');
+  let regex = rest.replace(/\*\*/g, '___DOUBLE_STAR___');
 
   // Escape special regex characters except glob patterns
   regex = regex
@@ -18,7 +23,7 @@ function globToRegex(glob: string): RegExp {
   // Handle ** - it should match everything including /
   regex = regex.replace(/___DOUBLE_STAR___/g, '.*');
 
-  return new RegExp(`^${regex}$`);
+  return new RegExp(`^${leadingGlobstar ? '(?:.*/)?' : ''}${regex}$`);
 }
 
 export class FileFilter {
