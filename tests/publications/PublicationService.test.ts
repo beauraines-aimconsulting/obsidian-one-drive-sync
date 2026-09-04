@@ -673,7 +673,7 @@ private: true
   });
 
   describe('Error Handling', () => {
-    it('should handle invalid YAML frontmatter gracefully', async () => {
+    it('should mark files with invalid YAML frontmatter as ineligible', async () => {
       service.addRule('pass', new MockPassRule());
 
       const content = `---
@@ -685,7 +685,32 @@ invalid: [yaml: content here
       const result = await service.evaluateFile('/test/file.md', content);
 
       expect(result).toBeDefined();
-      expect(result.eligible).toBe(true);
+      // Fail closed: the frontmatter is unreadable, so publish/private intent
+      // is unknown and the file must not be published on a rule technicality.
+      expect(result.eligible).toBe(false);
+      expect(result.parseError).toBeDefined();
+      expect(result.reason).toContain('Frontmatter parse error');
+      expect(result.rules).toEqual([]);
+    });
+
+    it('should distinguish parse failures from rule failures', async () => {
+      service.addRule('fail', new MockFailRule());
+
+      const ruleMiss = await service.evaluateFile(
+        '/test/rule-miss.md',
+        '---\npublish: true\n---\nBody'
+      );
+      const parseMiss = await service.evaluateFile(
+        '/test/parse-miss.md',
+        '---\ncreated: {{date}} {{time}}:00\nx: 1\n---\nBody'
+      );
+
+      expect(ruleMiss.eligible).toBe(false);
+      expect(ruleMiss.parseError).toBeUndefined();
+
+      expect(parseMiss.eligible).toBe(false);
+      expect(parseMiss.parseError?.filepath).toBe('/test/parse-miss.md');
+      expect(parseMiss.parseError?.line).toBe(2);
     });
 
     it('should handle special characters in content', async () => {

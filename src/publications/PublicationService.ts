@@ -7,7 +7,7 @@ import { RuleEngine } from '../rules/RuleEngine.js';
 import { RuleLoader } from '../rules/RuleLoader.js';
 import { ConfigManager } from '../config/ConfigManager.js';
 import type { Rule } from '../rules/types.js';
-import type { Frontmatter } from '../parser/types.js';
+import type { Frontmatter, FrontmatterParseError } from '../parser/types.js';
 import type {
   PublicationServiceConfig,
   EligibilityResult,
@@ -40,7 +40,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   constructor(config?: PublicationServiceConfig) {
     super();
     this.logger = new Logger(config?.logLevel ?? 'info', 'PublicationService');
-    this.frontmatterParser = new FrontmatterParser();
+    this.frontmatterParser = new FrontmatterParser(config?.logLevel ?? 'info');
     this.inlineTagParser = new InlineTagParser();
     this.configManager = new ConfigManager();
     this.ruleEngine = new RuleEngine({
@@ -75,7 +75,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     }
 
     // Parse frontmatter from content
-    const parseResult = this.frontmatterParser.parse(content);
+    const parseResult = this.frontmatterParser.parse(content, filepath);
     const frontmatter = parseResult.frontmatter;
 
     // Evaluate with extracted frontmatter
@@ -83,7 +83,8 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
       filepath,
       frontmatter,
       parseResult.content,
-      contentHash
+      contentHash,
+      parseResult.error
     );
   }
 
@@ -95,7 +96,8 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     filepath: string,
     frontmatter: Frontmatter,
     content?: string,
-    precomputedHash?: string
+    precomputedHash?: string,
+    parseError?: FrontmatterParseError
   ): Promise<EligibilityResult> {
     const contentHash =
       precomputedHash ?? hashInput(JSON.stringify(frontmatter ?? {}), content ?? '');
@@ -110,6 +112,40 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     }
 
     const contentToEval = content ?? '';
+
+    // A file whose frontmatter failed to parse cannot be evaluated safely: its
+    // `publish`/`private`/`tags` values are unknown, so treating it as a normal
+    // rule miss could silently publish a note that was meant to stay private.
+    // Fail closed and report the cause distinctly.
+    if (parseError) {
+      const location = [
+        parseError.line !== undefined ? `line ${parseError.line}` : null,
+        parseError.column !== undefined ? `column ${parseError.column}` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      const result: EligibilityResult = {
+        eligible: false,
+        reason: location
+          ? `Frontmatter parse error at ${location}: ${parseError.reason}`
+          : `Frontmatter parse error: ${parseError.reason}`,
+        rules: [],
+        evaluatedAt: Date.now(),
+        parseError,
+      };
+
+      if (this.enableCache) {
+        this.cacheResult(filepath, result, contentHash);
+      }
+
+      await this.emit('evaluated', result);
+      // The parser already logged the actionable detail at warn level; callers
+      // surface the outcome via `parseError`, so avoid double-warning here.
+      this.logger.debug(`Skipping ${filepath}: ${result.reason}`);
+
+      return result;
+    }
 
     // Extract tags from frontmatter
     const frontmatterTags = this.frontmatterParser.getTags(frontmatter);
