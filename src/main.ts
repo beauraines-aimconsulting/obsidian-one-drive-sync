@@ -10,7 +10,9 @@ import { SyncService } from './graph/SyncService.js';
 import { SyncStateStore } from './graph/SyncStateStore.js';
 import { createGracefulShutdown } from './cli/gracefulShutdown.js';
 import { Scheduler } from './schedule/Scheduler.js';
+import { ScheduleHistoryStore } from './schedule/ScheduleHistoryStore.js';
 import { SyncCoordinator } from './schedule/SyncCoordinator.js';
+import { describeRunError } from './schedule/runErrors.js';
 import { HealthServer } from './health/HealthServer.js';
 import { parseDuration } from './utils/duration.js';
 import type { CliOptions } from './cli/types.js';
@@ -436,11 +438,26 @@ async function main(): Promise<number> {
 
   let scheduler: Scheduler | undefined;
   if (scheduleConfig && syncService) {
+    const history = new ScheduleHistoryStore();
+    console.log(`🗂️  Run history: ${history.getFilePath()}`);
+
     scheduler = new Scheduler({
       ...scheduleConfig,
+      // Skipped ticks are logged but not persisted: a schedule shorter than
+      // its own sync would otherwise fill all 50 history slots with skips and
+      // hide the runs someone actually wants to look at.
+      onRun: (run) => {
+        if (run.status !== 'skipped') history.record(run);
+      },
       task: async (signal) => {
         const startedAt = new Date().toISOString();
-        await coordinator.runFullSync(signal);
+        try {
+          await coordinator.runFullSync(signal);
+        } catch (error) {
+          // Rethrown with guidance attached so the recorded run, the log line
+          // and the health body all carry the actionable version.
+          throw new Error(describeRunError(error));
+        }
         // `running` lets the scheduler classify the run: `partial` when some
         // files failed, `success` otherwise.
         return {
@@ -478,6 +495,7 @@ async function main(): Promise<number> {
     () => ({
       watcherActive: watcher.isWatching(),
       lastFileProcessedAt: coordinator.getLastFileProcessedAt(),
+      ...(scheduler ? { schedule: scheduler.getStatus() } : {}),
     }),
     config.healthPort
   );

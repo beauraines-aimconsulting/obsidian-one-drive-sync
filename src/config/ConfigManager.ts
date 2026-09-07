@@ -37,11 +37,21 @@ function parseBoolean(value: string): boolean {
   return ['1', 'true', 'yes'].includes(value.trim().toLowerCase());
 }
 
+/**
+ * Compose passes unset variables through as empty strings, so an empty value
+ * has to mean "not set" rather than "zero" or "false".
+ */
+function envValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 function parseOptionalBoolean(
-  envValue: string | undefined,
+  value: string | undefined,
   fileValue: boolean | undefined
 ): boolean | undefined {
-  if (envValue !== undefined) return parseBoolean(envValue);
+  const fromEnv = envValue(value);
+  if (fromEnv !== undefined) return parseBoolean(fromEnv);
   return fileValue;
 }
 
@@ -66,7 +76,8 @@ function resolveSchedule(
     );
   }
 
-  const maxFailuresValue = env.SYNC_SCHEDULE_MAX_FAILURES ?? fromFile?.maxConsecutiveFailures;
+  const maxFailuresValue =
+    envValue(env.SYNC_SCHEDULE_MAX_FAILURES) ?? fromFile?.maxConsecutiveFailures;
   const maxConsecutiveFailures =
     maxFailuresValue === undefined ? undefined : Number(maxFailuresValue);
   if (
@@ -76,7 +87,7 @@ function resolveSchedule(
     throw new Error('SYNC_SCHEDULE_MAX_FAILURES must be a non-negative integer');
   }
 
-  const jitterValue = env.SYNC_SCHEDULE_JITTER_MS ?? fromFile?.jitterMs;
+  const jitterValue = envValue(env.SYNC_SCHEDULE_JITTER_MS) ?? fromFile?.jitterMs;
   const jitterMs = jitterValue === undefined ? undefined : Number(jitterValue);
   if (jitterMs !== undefined && (!Number.isInteger(jitterMs) || jitterMs < 0)) {
     throw new Error('SYNC_SCHEDULE_JITTER_MS must be a non-negative integer (milliseconds)');

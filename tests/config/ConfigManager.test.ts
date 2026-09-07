@@ -496,5 +496,26 @@ describe('ConfigManager', () => {
 
       await expect(configManager.load()).rejects.toThrow('SYNC_SCHEDULE_MAX_FAILURES');
     });
+    it('treats empty schedule variables as unset, as Compose passes them', async () => {
+      writeConfig({ spec: '30m', runOnStart: true, jitterMs: 500 });
+      env.SYNC_SCHEDULE = '';
+      env.SYNC_SCHEDULE_RUN_ON_START = '';
+      env.SYNC_SCHEDULE_JITTER_MS = '';
+      env.SYNC_SCHEDULE_MAX_FAILURES = '';
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toEqual({ spec: '30m', runOnStart: true, jitterMs: 500 });
+    });
+
+    it('stays disabled when only empty variables are present', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+      env.SYNC_SCHEDULE = '';
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toBeUndefined();
+    });
   });
 });

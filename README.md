@@ -27,6 +27,7 @@ creates a small, typed CLI that:
 - dry-run scan mode
 - Microsoft Graph device-code auth with a persistent token cache
 - OneDrive upload with change detection, so unchanged notes are skipped
+- scheduled full syncs on a fixed interval, with persisted run history
 - container image with a health endpoint and graceful shutdown
 
 ## Architecture
@@ -145,6 +146,11 @@ Configuration is loaded in this order:
 | `HEALTH_PORT` | no | Port for the health endpoint in watch mode; defaults to `8080` |
 | `WATCH_USE_POLLING` | no | Set to `true` to poll for changes instead of using native filesystem events. Required for bind-mounted vaults in Docker on macOS/Windows |
 | `WATCH_POLL_INTERVAL` | no | Poll interval in milliseconds when polling is enabled; defaults to `1000` |
+| `SYNC_SCHEDULE` | no | Interval between full syncs, e.g. `15m`, `1h`, `1d`. Empty or unset means no schedule |
+| `SYNC_SCHEDULE_RUN_ON_START` | no | Run once at startup instead of waiting a full interval; defaults to `true` |
+| `SYNC_SCHEDULE_SKIP_IF_RUNNING` | no | Skip a tick that lands while the previous run is still going; defaults to `true` |
+| `SYNC_SCHEDULE_JITTER_MS` | no | Random 0..n milliseconds added to each delay; defaults to `0` |
+| `SYNC_SCHEDULE_MAX_FAILURES` | no | Exit after this many consecutive failures; `0` (the default) never exits |
 
 ### Defaults
 
@@ -630,6 +636,117 @@ npm start -- --schedule 1h --watch
 - prints one line per file with an eligible / not-eligible result
 - or explains a single file's decision in detail with `--explain`
 
+## Scheduled syncs
+
+Watching and scheduling answer different questions. The watcher answers "this file just changed,
+upload it" — fast, event-driven, and blind to anything that happens while the process is not
+running. A schedule answers "is OneDrive still an accurate reflection of the vault?" — it walks
+every eligible file, uploads what changed, and removes what is no longer eligible.
+
+Running both is the usual choice: edits appear in seconds, and a periodic full sync catches
+whatever the watcher missed — events dropped by a bind mount, notes edited while the container was
+down, or a rules change that made a previously published note ineligible.
+
+```bash
+# Watch, and reconcile the whole vault every hour
+npm start -- --sync --watch --schedule 1h
+
+# Schedule only, no watcher (a quieter, more predictable pattern for servers)
+npm start -- --schedule 30m
+
+# Preview the cadence without uploading anything
+npm start -- --schedule 5m --dry-run
+```
+
+`--schedule` implies `--sync`; a timer that only evaluated rules would do nothing useful.
+It accepts the same duration strings used elsewhere in the config: `500ms`, `90s`, `15m`, `1h`,
+`1d`. A bare number is rejected — units are required, so `--schedule 60` is an error rather than a
+surprise.
+
+### Configuring a schedule
+
+Precedence is **defaults < config file < environment < `--schedule`**, resolved per setting.
+
+```json
+{
+  "config": {
+    "schedule": {
+      "spec": "1h",
+      "runOnStart": true,
+      "skipIfRunning": true,
+      "jitterMs": 0,
+      "maxConsecutiveFailures": 0
+    }
+  }
+}
+```
+
+The equivalent environment variables are `SYNC_SCHEDULE`, `SYNC_SCHEDULE_RUN_ON_START`,
+`SYNC_SCHEDULE_SKIP_IF_RUNNING`, `SYNC_SCHEDULE_JITTER_MS` and `SYNC_SCHEDULE_MAX_FAILURES`.
+The interval is validated at startup, so a typo fails immediately rather than an hour later.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `spec` | — | Interval between runs |
+| `runOnStart` | `true` | Sync once immediately instead of waiting a full interval |
+| `skipIfRunning` | `true` | Skip a tick that lands while the previous run is still going |
+| `jitterMs` | `0` | Random 0..n milliseconds added to each delay |
+| `maxConsecutiveFailures` | `0` (off) | Exit after this many failures in a row |
+
+### Timing and overlap
+
+Runs land on a fixed grid: the next tick is scheduled when a tick fires, not when the run
+finishes, so a slow sync does not push the whole schedule later and later. If a run overruns by
+more than a full interval, the scheduler fires once and realigns rather than replaying every
+missed tick.
+
+With `skipIfRunning` left at its default, a tick that arrives mid-run is recorded as `skipped` and
+nothing else happens — a full sync reconciles complete state, so coalescing to "run again next
+tick" loses nothing. Setting it to `false` genuinely allows overlapping runs; only the most recent
+one is drained on shutdown.
+
+While a full sync runs, watcher events are held back and replayed once it finishes. The full
+sync's cleanup step deletes anything tracked but no longer eligible, computed from a file list a
+concurrent edit could invalidate, so the two paths are never allowed to interleave. Most replays
+turn out to be no-ops because the full sync already picked the change up.
+
+A run where some files failed is recorded as `partial`, not `failed`: "3 of 200 uploads failed" is
+a different situation from "authentication blew up", and only the latter counts toward
+`maxConsecutiveFailures`.
+
+### Run history
+
+Each run is appended to `~/.obsidian-sync/schedule-history.json` — the same directory already
+volume-mounted for the container, so history survives a restart with no extra mount. The 50 most
+recent runs are kept, newest first, and each write is atomic. Skipped ticks are logged but not
+persisted, so a schedule shorter than its own sync cannot fill the history with skips. A corrupt or unreadable file is
+reported as a warning and replaced with an empty history: this is diagnostic data and must never
+stop the app from syncing.
+
+### Authentication expiry
+
+This is the failure mode to plan for. A long-running scheduled process relies on the cached
+refresh token in `~/.obsidian-sync` staying valid. When it lapses — revoked credentials, an MFA
+policy change, or simple inactivity — **every** scheduled run fails until someone signs in
+interactively, and no container restart can fix it.
+
+The run is recorded with an explicit message rather than a raw MSAL error:
+
+```text
+Authentication expired — sign in again by running the app with --probe.
+Scheduled runs cannot complete a device-code sign-in on their own.
+```
+
+Recovering means running `--probe` somewhere you can complete the device-code flow, against the
+same `~/.obsidian-sync` volume:
+
+```bash
+docker compose run --rm obsidian-sync node dist/main.js --probe
+```
+
+Set `SYNC_SCHEDULE_MAX_FAILURES` (3 is a reasonable value) if you would rather the process exit
+and let your supervisor alert you than keep failing quietly.
+
 ## Health endpoint
 
 In watch mode the CLI serves a health endpoint for container orchestrators:
@@ -646,10 +763,44 @@ curl http://localhost:8080/healthz
 }
 ```
 
-- Returns `200` while the vault watcher is active
-- Returns `503` if the watcher is not active, so an orchestrator can restart the container
+With a schedule configured the body also carries a `schedule` block:
+
+```json
+{
+  "status": "ok",
+  "watcherActive": true,
+  "lastFileProcessedAt": "2026-09-01T18:00:00.000Z",
+  "schedule": {
+    "enabled": true,
+    "spec": "1h",
+    "intervalMs": 3600000,
+    "running": false,
+    "nextRunAt": "2026-09-01T19:00:00.000Z",
+    "lastRun": {
+      "startedAt": "2026-09-01T18:00:00.000Z",
+      "finishedAt": "2026-09-01T18:00:12.000Z",
+      "status": "success",
+      "durationMs": 12000,
+      "uploaded": 3,
+      "skipped": 118,
+      "removed": 0,
+      "failed": 0
+    },
+    "consecutiveFailures": 0,
+    "totalRuns": 7
+  }
+}
+```
+
+- Returns `200` while the watcher is active **or** a schedule is running
+- Returns `503` when neither is active, so an orchestrator can restart the container
 - Returns `404` for any other path
-- Only runs in watch mode — `--dry-run`, one-shot `--sync`, and `--probe` exit instead of serving
+- Runs in watch mode and schedule mode — `--dry-run`, one-shot `--sync`, and `--probe` exit
+  instead of serving
+- **Failing scheduled runs do not change the status code.** They are reported in the body via
+  `schedule.consecutiveFailures` and `schedule.lastRun`. The likeliest cause of repeated failures
+  is an expired sign-in, which a container restart cannot fix, so a `503` would only produce a
+  restart loop. Use `SYNC_SCHEDULE_MAX_FAILURES` if you want the process to exit instead.
 
 ### Changing the port
 
@@ -711,6 +862,15 @@ set credentials and behavior:
 | `WATCH_USE_POLLING` | for watch mode on macOS/Windows | `false` | Poll instead of relying on native filesystem events |
 | `WATCH_POLL_INTERVAL` | no | `1000` | Poll interval in milliseconds |
 | `HEALTH_PORT` | no | `8080` | Health endpoint port inside the container |
+| `SYNC_SCHEDULE` | no | unset | Interval between full syncs, e.g. `1h`. Empty means no schedule |
+| `SYNC_SCHEDULE_RUN_ON_START` | no | `true` | Sync once at startup rather than waiting an interval |
+| `SYNC_SCHEDULE_SKIP_IF_RUNNING` | no | `true` | Skip a tick that lands while a run is still going |
+| `SYNC_SCHEDULE_JITTER_MS` | no | `0` | Random 0..n milliseconds added to each delay |
+| `SYNC_SCHEDULE_MAX_FAILURES` | no | `0` | Exit after this many consecutive failures; `0` never exits |
+
+The image runs `--sync --watch`; setting `SYNC_SCHEDULE` adds a periodic full sync on top, with
+history persisted to the `/home/node/.obsidian-sync` volume. See
+[Scheduled syncs](#scheduled-syncs).
 
 ### Watch mode on bind-mounted vaults
 
