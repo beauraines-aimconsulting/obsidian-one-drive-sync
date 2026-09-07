@@ -1,3 +1,5 @@
+import type { ScheduleConfig } from '../schedule/types.js';
+
 export interface AppConfig {
   vaultPath: string;
   outputPath: string;
@@ -13,4 +15,6 @@ export interface AppConfig {
   healthPort: number;
   usePolling: boolean;
   pollInterval: number;
+  /** Periodic full sync. Absent when scheduling is off. */
+  schedule?: ScheduleConfig;
 }

@@ -106,3 +106,54 @@ describe('CLI --explain', () => {
     expect(usage()).toContain('--explain-json');
   });
 });
+
+describe('CLI --schedule', () => {
+  it('parses an interval and implies --sync', () => {
+    const options = parseArgs(['--schedule', '1h']);
+    expect(options.schedule).toBe('1h');
+    expect(options.sync).toBe(true);
+  });
+
+  it('combines with --watch and --dry-run', () => {
+    const options = parseArgs(['--schedule', '15m', '--watch', '--dry-run']);
+    expect(options.schedule).toBe('15m');
+    expect(options.watch).toBe(true);
+    expect(options.dryRun).toBe(true);
+    expect(options.sync).toBe(true);
+  });
+
+  it('requires a value', () => {
+    expect(() => parseArgs(['--schedule'])).toThrow(/requires an interval/);
+  });
+
+  it('rejects a value that looks like another flag', () => {
+    expect(() => parseArgs(['--schedule', '--watch'])).toThrow(/requires an interval/);
+  });
+
+  it('rejects an unparseable interval', () => {
+    expect(() => parseArgs(['--schedule', 'hourly'])).toThrow();
+  });
+
+  it('rejects a bare number without units', () => {
+    expect(() => parseArgs(['--schedule', '60'])).toThrow();
+  });
+
+  it.each(['--probe', '--logout', '--migrate-rules'])(
+    'rejects --schedule with %s',
+    (flag) => {
+      expect(() => parseArgs(['--schedule', '1h', flag])).toThrow(
+        /--schedule cannot be combined with/
+      );
+    }
+  );
+
+  it('rejects --schedule with --explain', () => {
+    expect(() => parseArgs(['--explain', 'a.md', '--schedule', '1h'])).toThrow(
+      /--explain cannot be combined with/
+    );
+  });
+
+  it('documents the flag in the usage text', () => {
+    expect(usage()).toContain('--schedule <interval>');
+  });
+});

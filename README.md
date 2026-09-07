@@ -596,6 +596,10 @@ Options:
   --watch          Keep running and sync changes as they happen
                    (combine with --sync for an initial full sync)
   --force-sync     Re-upload all eligible files regardless of changes
+  --schedule <interval>
+                   Run a full sync repeatedly (e.g. 15m, 1h, 1d). Implies
+                   --sync; combine with --watch for event-driven updates
+                   plus periodic reconciliation
   --explain <path> Evaluate one vault file and print why it was or was not
                    eligible (exit 0 eligible, 1 ineligible, 2 error)
   --explain-json   With --explain, emit the raw result as JSON
@@ -614,6 +618,7 @@ npm run dev -- --help
 npm run dev -- --config ./config/rules.json --dry-run
 npm start -- --dry-run
 npm start -- --explain 'MSFT/notes/planning.md'
+npm start -- --schedule 1h --watch
 ```
 
 ### What the CLI does

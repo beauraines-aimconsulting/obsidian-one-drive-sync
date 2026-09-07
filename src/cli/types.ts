@@ -15,6 +15,8 @@ export interface CliOptions {
   explain?: string;
   /** Emit the explain result as raw JSON instead of a tree. */
   explainJson: boolean;
+  /** Interval spec for a repeating full sync, e.g. `1h`. */
+  schedule?: string;
 }
 
 export interface CliRunResult {

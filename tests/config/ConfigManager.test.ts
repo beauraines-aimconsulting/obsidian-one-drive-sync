@@ -400,4 +400,101 @@ describe('ConfigManager', () => {
 
     expect(config.vaultPath).toBe('/file/vault');
   });
+  describe('schedule', () => {
+    function writeConfig(schedule: unknown): void {
+      fs.mkdirSync(tempDir, { recursive: true });
+      fs.writeFileSync(
+        rulesConfigPath,
+        JSON.stringify({
+          config: { vaultPath: '/file/vault', outputPath: '/file/output', schedule },
+        })
+      );
+      env.RULES_CONFIG = rulesConfigPath;
+    }
+
+    it('is undefined when nothing configures it', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toBeUndefined();
+    });
+
+    it('reads a schedule from the config file', async () => {
+      writeConfig({ spec: '30m', runOnStart: true, jitterMs: 5000, maxConsecutiveFailures: 3 });
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toEqual({
+        spec: '30m',
+        runOnStart: true,
+        jitterMs: 5000,
+        maxConsecutiveFailures: 3,
+      });
+    });
+
+    it('reads a schedule from the environment', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+      env.SYNC_SCHEDULE = '1h';
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toEqual({ spec: '1h' });
+    });
+
+    it('prefers the environment over the config file', async () => {
+      writeConfig({ spec: '30m' });
+      env.SYNC_SCHEDULE = '2h';
+
+      const config = await configManager.load();
+
+      expect(config.schedule?.spec).toBe('2h');
+    });
+
+    it('overrides individual file settings from the environment', async () => {
+      writeConfig({ spec: '30m', runOnStart: true, skipIfRunning: true, jitterMs: 1000 });
+      env.SYNC_SCHEDULE_RUN_ON_START = 'false';
+      env.SYNC_SCHEDULE_SKIP_IF_RUNNING = 'false';
+      env.SYNC_SCHEDULE_JITTER_MS = '250';
+      env.SYNC_SCHEDULE_MAX_FAILURES = '7';
+
+      const config = await configManager.load();
+
+      expect(config.schedule).toEqual({
+        spec: '30m',
+        runOnStart: false,
+        skipIfRunning: false,
+        jitterMs: 250,
+        maxConsecutiveFailures: 7,
+      });
+    });
+
+    it('rejects an invalid interval at startup', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+      env.SYNC_SCHEDULE = 'every friday';
+
+      await expect(configManager.load()).rejects.toThrow('SYNC_SCHEDULE is not a valid interval');
+    });
+
+    it('rejects a non-numeric jitter', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+      env.SYNC_SCHEDULE = '1h';
+      env.SYNC_SCHEDULE_JITTER_MS = 'lots';
+
+      await expect(configManager.load()).rejects.toThrow('SYNC_SCHEDULE_JITTER_MS');
+    });
+
+    it('rejects a negative failure limit', async () => {
+      env.VAULT_PATH = '/test/vault';
+      env.OUTPUT_PATH = '/test/output';
+      env.SYNC_SCHEDULE = '1h';
+      env.SYNC_SCHEDULE_MAX_FAILURES = '-1';
+
+      await expect(configManager.load()).rejects.toThrow('SYNC_SCHEDULE_MAX_FAILURES');
+    });
+  });
 });

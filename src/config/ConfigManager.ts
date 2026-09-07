@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import type { AppConfig } from './types.js';
+import type { ScheduleConfig } from '../schedule/types.js';
+import { parseDuration } from '../utils/duration.js';
 
 function expandTilde(filepath: string): string {
   if (filepath.startsWith('~/')) {
@@ -29,6 +31,71 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
   ],
   extraIgnorePatterns: [],
 };
+
+/** The convention `WATCH_USE_POLLING` already established. */
+function parseBoolean(value: string): boolean {
+  return ['1', 'true', 'yes'].includes(value.trim().toLowerCase());
+}
+
+function parseOptionalBoolean(
+  envValue: string | undefined,
+  fileValue: boolean | undefined
+): boolean | undefined {
+  if (envValue !== undefined) return parseBoolean(envValue);
+  return fileValue;
+}
+
+/**
+ * Resolve the schedule block from defaults < file < env.
+ *
+ * The spec is parsed here rather than at the first tick, so a typo fails at
+ * startup with a clear message instead of silently doing nothing for an hour.
+ */
+function resolveSchedule(
+  env: EnvSource,
+  fromFile: ScheduleConfig | undefined
+): ScheduleConfig | undefined {
+  const spec = env.SYNC_SCHEDULE?.trim() || fromFile?.spec;
+  if (!spec) return undefined;
+
+  try {
+    parseDuration(spec);
+  } catch (error) {
+    throw new Error(
+      `SYNC_SCHEDULE is not a valid interval: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const maxFailuresValue = env.SYNC_SCHEDULE_MAX_FAILURES ?? fromFile?.maxConsecutiveFailures;
+  const maxConsecutiveFailures =
+    maxFailuresValue === undefined ? undefined : Number(maxFailuresValue);
+  if (
+    maxConsecutiveFailures !== undefined &&
+    (!Number.isInteger(maxConsecutiveFailures) || maxConsecutiveFailures < 0)
+  ) {
+    throw new Error('SYNC_SCHEDULE_MAX_FAILURES must be a non-negative integer');
+  }
+
+  const jitterValue = env.SYNC_SCHEDULE_JITTER_MS ?? fromFile?.jitterMs;
+  const jitterMs = jitterValue === undefined ? undefined : Number(jitterValue);
+  if (jitterMs !== undefined && (!Number.isInteger(jitterMs) || jitterMs < 0)) {
+    throw new Error('SYNC_SCHEDULE_JITTER_MS must be a non-negative integer (milliseconds)');
+  }
+
+  const runOnStart = parseOptionalBoolean(env.SYNC_SCHEDULE_RUN_ON_START, fromFile?.runOnStart);
+  const skipIfRunning = parseOptionalBoolean(
+    env.SYNC_SCHEDULE_SKIP_IF_RUNNING,
+    fromFile?.skipIfRunning
+  );
+
+  return {
+    spec,
+    ...(runOnStart !== undefined ? { runOnStart } : {}),
+    ...(skipIfRunning !== undefined ? { skipIfRunning } : {}),
+    ...(jitterMs !== undefined ? { jitterMs } : {}),
+    ...(maxConsecutiveFailures !== undefined ? { maxConsecutiveFailures } : {}),
+  };
+}
 
 function parsePatternList(value: string): string[] {
   return value
@@ -116,8 +183,9 @@ export class ConfigManager {
       String(DEFAULT_CONFIG.pollInterval);
     const usePolling =
       env.WATCH_USE_POLLING !== undefined
-        ? ['1', 'true', 'yes'].includes(env.WATCH_USE_POLLING.trim().toLowerCase())
+        ? parseBoolean(env.WATCH_USE_POLLING)
         : (configFromFile.usePolling ?? DEFAULT_CONFIG.usePolling ?? false);
+    const schedule = resolveSchedule(env, configFromFile.schedule);
 
     const merged = {
       ...DEFAULT_CONFIG,
@@ -145,6 +213,7 @@ export class ConfigManager {
       healthPort: parseInt(healthPortValue, 10),
       usePolling,
       pollInterval: parseInt(pollIntervalValue, 10),
+      schedule,
     };
 
     // Validate required fields

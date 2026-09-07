@@ -71,4 +71,34 @@ describe('createGracefulShutdown', () => {
 
     expect(events).toEqual(['health', 'watcher']);
   });
+  it('stops the scheduler before the watcher and the health server', async () => {
+    const order: string[] = [];
+    const shutdown = createGracefulShutdown(
+      { unwatch: vi.fn().mockImplementation(() => { order.push('watcher'); return Promise.resolve(); }) },
+      new Set(),
+      { info: vi.fn(), error: vi.fn() },
+      { stop: vi.fn().mockImplementation(() => { order.push('health'); return Promise.resolve(); }) },
+      { stop: vi.fn().mockImplementation(() => { order.push('scheduler'); return Promise.resolve(); }) }
+    );
+
+    await expect(shutdown('SIGTERM')).resolves.toBe(0);
+
+    expect(order).toEqual(['scheduler', 'health', 'watcher']);
+  });
+
+  it('reports a scheduler that fails to stop', async () => {
+    const error = vi.fn();
+    const unwatch = vi.fn().mockResolvedValue(undefined);
+    const shutdown = createGracefulShutdown(
+      { unwatch },
+      new Set(),
+      { info: vi.fn(), error },
+      undefined,
+      { stop: vi.fn().mockRejectedValue(new Error('drain failed')) }
+    );
+
+    await expect(shutdown('SIGTERM')).resolves.toBe(1);
+    expect(error).toHaveBeenCalledWith('Failed to shut down cleanly: drain failed');
+    expect(unwatch).not.toHaveBeenCalled();
+  });
 });
