@@ -1,14 +1,34 @@
 import * as yaml from 'js-yaml';
-import type { Frontmatter, ParseResult } from './types.js';
+import { Logger } from '../utils/Logger.js';
+import type { LogLevel } from '../utils/types.js';
+import type { Frontmatter, FrontmatterParseError, ParseResult } from './types.js';
+
+/**
+ * Frontmatter is parsed with the YAML *core* schema rather than js-yaml's
+ * default schema. The default schema implements YAML 1.1 timestamps, which
+ * silently resolves fields like `created: 2026-08-16` into JS `Date` objects
+ * and makes string comparisons in rules fail in surprising ways. The core
+ * schema keeps those values as the strings the note author actually wrote.
+ */
+const FRONTMATTER_SCHEMA = yaml.CORE_SCHEMA;
 
 export class FrontmatterParser {
   private cache: Map<string, Frontmatter> = new Map();
+  private errorCache: Map<string, FrontmatterParseError> = new Map();
+  private logger: Logger;
+
+  constructor(logLevel: LogLevel = 'info') {
+    this.logger = new Logger(logLevel, 'FrontmatterParser');
+  }
 
   /**
    * Parse YAML frontmatter from markdown content.
    * Frontmatter must be enclosed in --- delimiters at the start of the file.
+   *
+   * @param content Full markdown source.
+   * @param filepath Optional vault-relative path, used to identify the file in warnings.
    */
-  parse(content: string): ParseResult {
+  parse(content: string, filepath?: string): ParseResult {
     const trimmed = content.trimStart();
 
     // Check if content starts with ---
@@ -41,24 +61,74 @@ export class FrontmatterParser {
     // Extract frontmatter content
     const frontmatterStr = lines.slice(1, closeIndex).join('\n');
 
-    try {
-      const parsed = yaml.load(frontmatterStr) as Frontmatter | null;
-      const frontmatter = parsed || {};
+    // Content with the frontmatter block removed. Used by both the success and
+    // the failure path so a malformed block is never uploaded verbatim.
+    const bodyContent = lines
+      .slice(closeIndex + 1)
+      .join('\n')
+      .trim();
 
-      // Reconstruct content without frontmatter
-      const contentLines = lines.slice(closeIndex + 1).join('\n').trim();
+    try {
+      const parsed = yaml.load(frontmatterStr, {
+        schema: FRONTMATTER_SCHEMA,
+      }) as Frontmatter | null;
 
       return {
-        frontmatter,
-        content: contentLines,
+        frontmatter: parsed || {},
+        content: bodyContent,
       };
     } catch (error) {
-      console.warn('Failed to parse YAML frontmatter:', error);
+      const parseError = this.toParseError(error, content, trimmed, filepath);
+
+      this.logger.warn('Failed to parse YAML frontmatter', {
+        filepath: filepath ?? '<unknown>',
+        line: parseError.line,
+        column: parseError.column,
+        reason: parseError.reason,
+      });
+
       return {
         frontmatter: {},
-        content,
+        content: bodyContent,
+        error: parseError,
       };
     }
+  }
+
+  /**
+   * Convert a js-yaml exception into a concise, file-relative error descriptor.
+   * Deliberately drops the stack trace and js-yaml's `mark.buffer`, which
+   * echoes raw note content into the logs.
+   */
+  private toParseError(
+    error: unknown,
+    content: string,
+    trimmed: string,
+    filepath?: string
+  ): FrontmatterParseError {
+    const yamlError = error as {
+      reason?: unknown;
+      message?: unknown;
+      mark?: { line?: number; column?: number };
+    };
+
+    const reason =
+      typeof yamlError?.reason === 'string' && yamlError.reason.length > 0
+        ? yamlError.reason
+        : typeof yamlError?.message === 'string'
+          ? yamlError.message.split('\n')[0]
+          : String(error);
+
+    // js-yaml marks are 0-based and relative to the frontmatter body, which
+    // starts one line after the opening `---` of the trimmed content.
+    const strippedPrefix = content.slice(0, content.length - trimmed.length);
+    const leadingLines = strippedPrefix.split('\n').length - 1;
+
+    const mark = yamlError?.mark;
+    const line = typeof mark?.line === 'number' ? leadingLines + mark.line + 2 : undefined;
+    const column = typeof mark?.column === 'number' ? mark.column + 1 : undefined;
+
+    return { filepath, line, column, reason };
   }
 
   /**
@@ -69,8 +139,15 @@ export class FrontmatterParser {
       return this.cache.get(filepath)!;
     }
 
-    const result = this.parse(content);
+    const result = this.parse(content, filepath);
     this.cache.set(filepath, result.frontmatter);
+
+    if (result.error) {
+      this.errorCache.set(filepath, result.error);
+    } else {
+      this.errorCache.delete(filepath);
+    }
+
     return result.frontmatter;
   }
 
@@ -82,13 +159,22 @@ export class FrontmatterParser {
   }
 
   /**
+   * Get the cached parse error for a file, if its frontmatter failed to parse.
+   */
+  getCachedError(filepath: string): FrontmatterParseError | undefined {
+    return this.errorCache.get(filepath);
+  }
+
+  /**
    * Clear cache for a specific file or entire cache.
    */
   clearCache(filepath?: string): void {
     if (filepath) {
       this.cache.delete(filepath);
+      this.errorCache.delete(filepath);
     } else {
       this.cache.clear();
+      this.errorCache.clear();
     }
   }
 

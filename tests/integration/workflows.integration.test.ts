@@ -187,9 +187,11 @@ bad: [unclosed
     );
 
     expect(result.eligible).toBe(false);
-    expect(result.rules.find((rule) => rule.name === 'frontmatter')?.passed).toBe(
-      false
-    );
+    // Malformed frontmatter short-circuits rule evaluation and is reported
+    // distinctly, rather than looking like an ordinary rule miss.
+    expect(result.rules).toEqual([]);
+    expect(result.parseError?.filepath).toBe(relativeNotePath);
+    expect(result.reason).toContain('Frontmatter parse error');
   });
 
   it('debounces real filesystem changes from the watcher', async () => {

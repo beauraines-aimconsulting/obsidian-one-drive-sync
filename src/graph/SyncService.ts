@@ -25,6 +25,8 @@ export interface SyncResult {
   skipped: string[];
   failed: Array<{ filepath: string; error: string }>;
   removed: string[];
+  /** Files skipped because their YAML frontmatter could not be parsed. */
+  parseErrors: Array<{ filepath: string; reason: string }>;
   totalEligible: number;
   duration: number;
 }
@@ -67,6 +69,7 @@ export class SyncService {
       skipped: [],
       failed: [],
       removed: [],
+      parseErrors: [],
       totalEligible: 0,
       duration: 0,
     };
@@ -96,6 +99,9 @@ export class SyncService {
 
       if (evaluation.eligible) {
         eligibleFiles.push({ filepath, relativePath, content });
+      } else if (evaluation.parseError) {
+        result.parseErrors.push({ filepath: relativePath, reason: evaluation.reason });
+        log(`   ⚠️  Skipped (frontmatter): ${relativePath} — ${evaluation.reason}`);
       }
     }
 
@@ -136,12 +142,17 @@ export class SyncService {
       }
     }
 
-    // Remove stale files (previously synced but no longer eligible)
+    // Remove stale files (previously synced but no longer eligible).
+    // Files whose frontmatter failed to parse are deliberately excluded: their
+    // publish intent is unknown, so we neither publish them nor tear down the
+    // last version that was successfully published. A transient YAML typo must
+    // not delete an already-published note.
     const eligiblePaths = new Set(eligibleFiles.map((f) => f.relativePath));
+    const parseErrorPaths = new Set(result.parseErrors.map((p) => p.filepath));
     const trackedFiles = this.syncState.getAllTrackedFiles();
 
     for (const tracked of trackedFiles) {
-      if (!eligiblePaths.has(tracked)) {
+      if (!eligiblePaths.has(tracked) && !parseErrorPaths.has(tracked)) {
         const entry = this.syncState.getEntry(tracked);
         if (entry) {
           if (this.options.dryRun) {
@@ -189,6 +200,12 @@ export class SyncService {
     if (content !== null) {
       const evaluation = await this.publicationService.evaluateFile(relativePath, content);
       eligible = evaluation.eligible;
+      if (evaluation.parseError) {
+        // Leave OneDrive untouched: we can't tell whether this note should be
+        // published, so keep the last good version rather than deleting it.
+        log(`   ⚠️  Skipped (frontmatter): ${relativePath} — ${evaluation.reason}`);
+        return { action: 'ignored', filepath: relativePath };
+      }
     }
 
     if (!eligible) {

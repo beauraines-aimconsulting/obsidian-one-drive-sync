@@ -214,6 +214,58 @@ tags:
 Ready to publish.
 ```
 
+### Frontmatter value types
+
+Frontmatter is parsed with the YAML **core schema** rather than js-yaml's default
+schema. The default schema implements YAML 1.1 timestamps and silently turns
+`created: 2026-08-16` into a JavaScript `Date`, which makes string comparisons in
+rules behave unexpectedly.
+
+With the core schema, date-like fields keep the exact string the author wrote:
+
+```md
+---
+created: 2026-08-16          # -> '2026-08-16'   (string)
+updated: 2026-08-16 10:30:00 # -> '2026-08-16 10:30:00' (string)
+---
+```
+
+Booleans, numbers, and `null`/`~` still resolve normally. Rules that compare date
+fields can therefore treat them as plain strings.
+
+### Malformed frontmatter
+
+If a note's frontmatter block is present but fails to parse, the file is
+**skipped and reported distinctly** from a note that was evaluated and simply
+failed a rule:
+
+```
+⚠️ notes/broken.md - Frontmatter parse error at line 2, column 19: bad indentation of a mapping entry
+```
+
+Behaviour on a parse failure:
+
+- A concise warning is logged through the standard logger (so it respects
+  `LOG_LEVEL`), naming the vault-relative file, line, column, and reason. No
+  stack traces or note contents are written to the log.
+- Rule evaluation is short-circuited and the file is **never published**. Because
+  `publish`/`private`/`tags` could not be read, publishing it would risk leaking a
+  note that was meant to stay private.
+- If the note was already published, the existing OneDrive copy is **left in
+  place**. A parse error means "publish intent unknown", not "unpublish", so a
+  transient YAML typo saved mid-edit will not delete an already-published note.
+- `--sync` reports these in a separate `⚠️ Skipped (frontmatter parse errors)`
+  summary line, so they are not confused with upload failures.
+
+A common cause is an Obsidian template placeholder that was never rendered.
+Unquoted `{{` starts a YAML flow mapping, so quote the value:
+
+```md
+---
+created: "{{date}} {{time}}:00"   # quoted — parses fine
+---
+```
+
 ### Path rule example
 
 ```ts
@@ -602,6 +654,9 @@ exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-eval
   `.obsidian/**`, and `node_modules/**` exclusions.
 - **Config file not applied**: confirm `RULES_CONFIG` points to a JSON file with a top-level
   `config` object.
+- **A note is skipped with `Frontmatter parse error`**: its YAML frontmatter is invalid, so
+  the file is excluded from sync. The warning names the file, line, and column. Unrendered
+  Obsidian template placeholders are a common cause — quote them (`created: "{{date}}"`).
 
 ## Roadmap
 
