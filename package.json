@@ -42,7 +42,8 @@
     "chokidar": "^3.5.3",
     "dotenv": "^16.3.1",
     "js-yaml": "^4.1.0",
-    "picomatch": "^4.0.7"
+    "picomatch": "^4.0.7",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@eslint/js": "^8.54.0",

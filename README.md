@@ -206,6 +206,66 @@ service.addRule(
 - `TagRule`: whitelist/blacklist by `tags`
 - `PathRule`: include/exclude by glob path
 
+### Rules configuration file
+
+Rules are usually declared in the JSON config file (`RULES_CONFIG`, default
+`config.json`) alongside the `config` section. Two schema versions are supported.
+
+**Version 2** (`rulesVersion: 2`) names each rule under `definitions` and combines
+them with a nested `match` tree:
+
+```jsonc
+{
+  "rulesVersion": 2,
+  "rules": {
+    "definitions": {
+      "workPaths": { "type": "path", "include": ["MSFT/**", "AIM/**"] },
+      "publicTags": { "type": "tag", "whitelist": ["ms-rte"], "requireAny": true },
+      "notPrivate": { "type": "privacy", "allowPrivate": false }
+    },
+    "match": {
+      "all": [
+        { "any": [{ "rule": "workPaths" }, { "rule": "publicTags" }] },
+        { "rule": "notPrivate" }
+      ]
+    }
+  }
+}
+```
+
+- `type` selects the rule: `path`, `tag`, `category`, `frontmatter`, `privacy`.
+- `match` nodes are `{ "all": [...] }`, `{ "any": [...] }`, `{ "not": {...} }`, or
+  `{ "rule": "name" }`, nestable to any depth. A definition may itself be a group,
+  so a reusable sub-expression can be named once and referenced repeatedly.
+- Any definition accepts `"negate": true` to invert its outcome.
+- The config is validated on load. Unknown keys, unknown rule types, references to
+  undefined rules, circular references, empty groups, and malformed globs are all
+  rejected with the path of the offending value, and every problem is reported at
+  once rather than one per run.
+
+**Version 1** is the original flat shape and still loads unchanged:
+
+```jsonc
+{
+  "rules": {
+    "composition": "OR",
+    "pathRule": { "include": ["MSFT/**"] },
+    "tagRule": { "whitelist": ["ms-rte"], "requireAny": true }
+  }
+}
+```
+
+A v1 document is migrated in memory on every load, so behaviour is identical
+either way; only the nested features above require v2. To persist the migration:
+
+```bash
+npm start -- --migrate-rules          # prints a diff, writes nothing
+npm start -- --migrate-rules --yes    # writes it, backing up to config.json.v1.bak
+```
+
+The file is replaced atomically, and sections the rule engine does not own — such
+as `config` — are carried across untouched.
+
 ### Frontmatter example
 
 ```md

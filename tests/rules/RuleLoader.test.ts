@@ -122,31 +122,142 @@ describe('RuleLoader', () => {
     expect(engine.getRuleNames()).toContain('CategoryRule');
   });
 
+  // Rejection behaviour is unchanged; the messages now name the offending
+  // config path so a user can find the value without guessing.
   it('throws on invalid composition value', () => {
     const filePath = writeConfig({
       rules: { composition: 'INVALID' },
     });
-    expect(() => loader.loadFromFile(filePath)).toThrow('Invalid rules composition');
+    expect(() => loader.loadFromFile(filePath)).toThrow('rules.composition');
   });
 
   it('throws when pathRule is not an object', () => {
     const filePath = writeConfig({
       rules: { pathRule: true },
     });
-    expect(() => loader.loadFromFile(filePath)).toThrow('pathRule must be an object');
+    expect(() => loader.loadFromFile(filePath)).toThrow('rules.pathRule');
   });
 
   it('throws when tagRule is not an object', () => {
     const filePath = writeConfig({
       rules: { tagRule: 'bad' },
     });
-    expect(() => loader.loadFromFile(filePath)).toThrow('tagRule must be an object');
+    expect(() => loader.loadFromFile(filePath)).toThrow('rules.tagRule');
   });
 
   it('throws when frontmatterRule is not true', () => {
     const filePath = writeConfig({
       rules: { frontmatterRule: {} },
     });
-    expect(() => loader.loadFromFile(filePath)).toThrow('frontmatterRule must be true');
+    expect(() => loader.loadFromFile(filePath)).toThrow('rules.frontmatterRule');
+  });
+
+  it('reports every problem at once rather than only the first', () => {
+    const filePath = writeConfig({
+      rules: { pathRule: { include: [''] }, tagRule: 'bad' },
+    });
+
+    expect(() => loader.loadFromFile(filePath)).toThrow(/rules\.pathRule/);
+    expect(() => loader.loadFromFile(filePath)).toThrow(/rules\.tagRule/);
+  });
+
+  it('rejects unknown options instead of silently ignoring them', () => {
+    const filePath = writeConfig({
+      rules: { tagRule: { whitlist: ['typo'] } },
+    });
+
+    expect(() => loader.loadFromFile(filePath)).toThrow('whitlist');
+  });
+});
+
+describe('RuleLoader v2 documents', () => {
+  const loader = (): RuleLoader => new RuleLoader('error');
+
+  it('loads a nested match tree', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: {
+          workPaths: { type: 'path', include: ['MSFT/**'] },
+          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+          notPrivate: { type: 'privacy', allowPrivate: false },
+        },
+        match: {
+          all: [{ any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] }, { rule: 'notPrivate' }],
+        },
+      },
+    });
+
+    expect(engine.evaluate('MSFT/a.md', {}, '').eligible).toBe(true);
+    expect(engine.evaluate('Other/a.md', { tags: ['ms-rte'] }, '').eligible).toBe(true);
+    expect(engine.evaluate('Other/a.md', {}, '').eligible).toBe(false);
+    expect(engine.evaluate('MSFT/a.md', { private: true }, '').eligible).toBe(false);
+  });
+
+  it('applies negate to any rule', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: { notWork: { type: 'path', include: ['MSFT/**'], negate: true } },
+        match: { rule: 'notWork' },
+      },
+    });
+
+    expect(engine.evaluate('MSFT/a.md', {}, '').eligible).toBe(false);
+
+    const result = engine.evaluate('Personal/a.md', {}, '');
+    expect(result.eligible).toBe(true);
+    expect(result.appliedRules[0].reason).toContain('NOT(');
+  });
+
+  it('supports a not group around a nested tree', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: {
+          workPaths: { type: 'path', include: ['MSFT/**'] },
+          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+        },
+        match: { not: { any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] } },
+      },
+    });
+
+    expect(engine.evaluate('MSFT/a.md', {}, '').eligible).toBe(false);
+    expect(engine.evaluate('Personal/a.md', {}, '').eligible).toBe(true);
+  });
+
+  it('exposes a nested trace for grouped decisions', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: {
+          workPaths: { type: 'path', include: ['MSFT/**'] },
+          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+        },
+        match: { all: [{ any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] }] },
+      },
+    });
+
+    const trace = engine.evaluate('MSFT/a.md', {}, '').appliedRules;
+    expect(trace[0].children?.map((child) => child.name)).toEqual(['any']);
+    expect(trace[0].children?.[0].children?.map((child) => child.name)).toEqual([
+      'workPaths',
+      'publicTags',
+    ]);
+  });
+
+  it('reports every configuration error at once', () => {
+    expect(() =>
+      loader().loadFromObject({
+        rulesVersion: 2,
+        rules: {
+          definitions: {
+            a: { type: 'path', include: ['MSFT/**'], bogus: 1 },
+            b: { type: 'tag', whitlist: ['x'] },
+          },
+          match: { all: [{ rule: 'a' }, { rule: 'b' }] },
+        },
+      })
+    ).toThrow(/bogus[\s\S]*whitlist|whitlist[\s\S]*bogus/);
   });
 });
