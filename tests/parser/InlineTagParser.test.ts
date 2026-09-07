@@ -485,3 +485,81 @@ block
     });
   });
 });
+
+describe('InlineTagParser.extractTagsWithSource', () => {
+  const parser = new InlineTagParser();
+
+  it('marks tags on ordinary lines as inline', () => {
+    expect(parser.extractTagsWithSource('Some note about #publishing.')).toEqual([
+      { tag: 'publishing', source: 'inline' },
+    ]);
+  });
+
+  it.each([
+    ['- [ ] call vendor #waiting', 'unchecked'],
+    ['- [x] shipped it #done', 'checked'],
+    ['* [/] in progress #wip', 'custom status with asterisk'],
+    ['+ [-] dropped #cancelled', 'custom status with plus'],
+    ['    - [ ] nested task #waiting', 'indented'],
+  ])('marks %s as a task tag (%s)', (line) => {
+    const [entry] = parser.extractTagsWithSource(line);
+    expect(entry.source).toBe('task');
+  });
+
+  it('does not treat a plain list item as a task', () => {
+    expect(parser.extractTagsWithSource('- just a bullet #topic')).toEqual([
+      { tag: 'topic', source: 'inline' },
+    ]);
+  });
+
+  it('does not treat a bracketed link at line start as a task', () => {
+    expect(parser.extractTagsWithSource('- [text](https://example.com) #topic')).toEqual([
+      { tag: 'topic', source: 'inline' },
+    ]);
+  });
+
+  it('reports a tag that appears in both positions once per source', () => {
+    const content = ['Topic note #review', '- [ ] ask Sam #review'].join('\n');
+
+    expect(parser.extractTagsWithSource(content)).toEqual([
+      { tag: 'review', source: 'inline' },
+      { tag: 'review', source: 'task' },
+    ]);
+  });
+
+  it('extracts nested tags in full', () => {
+    expect(parser.extractTagsWithSource('#project/alpha and #area/work/admin')).toEqual([
+      { tag: 'project/alpha', source: 'inline' },
+      { tag: 'area/work/admin', source: 'inline' },
+    ]);
+  });
+
+  it('keeps line alignment across fenced code blocks', () => {
+    const content = [
+      '# Heading',
+      '```',
+      '- [ ] fake task #code',
+      '```',
+      '- [ ] real task #waiting',
+    ].join('\n');
+
+    expect(parser.extractTagsWithSource(content)).toEqual([{ tag: 'waiting', source: 'task' }]);
+  });
+
+  it('still ignores inline code, wikilinks, and markdown anchors', () => {
+    const content = [
+      'Use `#literal` in code.',
+      'See [[Note#section]] for more.',
+      'Jump to [top](#anchor).',
+      '- [ ] real #waiting',
+    ].join('\n');
+
+    expect(parser.extractTagsWithSource(content)).toEqual([{ tag: 'waiting', source: 'task' }]);
+  });
+
+  it('agrees with extractTags on the set of tags found', () => {
+    const content = ['#alpha note', '- [ ] task #beta', 'more #alpha'].join('\n');
+
+    expect(parser.extractTags(content)).toEqual(['alpha', 'beta']);
+  });
+});

@@ -3,14 +3,24 @@ import type { Frontmatter, EvaluationResult } from '../Rule.js';
 import { compileGlobs, normalizeGlobPath, type GlobMatcher } from '../../utils/glob.js';
 
 export interface PathRuleConfig {
+  /**
+   * Globs to publish. An entry prefixed with `!` is a negation and behaves
+   * exactly like an `exclude` entry, so a single ordered list can express
+   * "everything under Work except its drafts".
+   */
   include?: string[];
   exclude?: string[];
   vaultPath?: string;
+  caseInsensitive?: boolean;
 }
 
 /**
  * Checks if the file path matches include/exclude patterns.
  * Normalizes paths internally so callers can pass either absolute or relative paths.
+ *
+ * `exclude` always beats `include`: a path matching both is rejected. Excluding
+ * is how a note is kept private, so it must not be defeatable by adding a
+ * broader include pattern.
  */
 export class PathRule extends Rule {
   name = 'PathRule';
@@ -22,12 +32,20 @@ export class PathRule extends Rule {
 
   constructor(config?: PathRuleConfig) {
     super();
-    const include = config?.include ?? [];
-    const exclude = config?.exclude ?? [];
+    const rawInclude = config?.include ?? [];
+    // `!pattern` inside `include` is folded into the exclude list rather than
+    // handled separately, so the precedence rule stays in one place.
+    const include = rawInclude.filter((pattern) => !pattern.startsWith('!'));
+    const negatedIncludes = rawInclude
+      .filter((pattern) => pattern.startsWith('!'))
+      .map((pattern) => pattern.slice(1));
+    const exclude = [...(config?.exclude ?? []), ...negatedIncludes];
+
+    const options = { caseInsensitive: config?.caseInsensitive ?? false };
     this.hasInclude = include.length > 0;
     this.hasExclude = exclude.length > 0;
-    this.matchesInclude = compileGlobs(include);
-    this.matchesExclude = compileGlobs(exclude);
+    this.matchesInclude = compileGlobs(include, options);
+    this.matchesExclude = compileGlobs(exclude, options);
     this.vaultPath = config?.vaultPath;
   }
 

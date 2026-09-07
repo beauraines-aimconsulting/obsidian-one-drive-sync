@@ -8,6 +8,9 @@ import { PrivacyRule } from './implementations/PrivacyRule.js';
 import { CategoryRule } from './implementations/CategoryRule.js';
 import { CompositeRule } from './implementations/CompositeRule.js';
 import { NegatedRule } from './implementations/NegatedRule.js';
+import { FrontmatterFieldRule } from './implementations/FrontmatterFieldRule.js';
+import { ContentRule } from './implementations/ContentRule.js';
+import { FileMetaRule } from './implementations/FileMetaRule.js';
 import { formatConfigErrors, validateRulesConfig } from './validateRulesConfig.js';
 import {
   isRuleDefinition,
@@ -164,23 +167,56 @@ export class RuleLoader {
         return new PathRule({
           include: definition.include,
           exclude: definition.exclude,
-          vaultPath,
+          caseInsensitive: definition.caseInsensitive,
+          // An explicit vaultPath in the definition wins over the ambient one,
+          // so a single rule can be pointed at a different root.
+          vaultPath: definition.vaultPath ?? vaultPath,
         });
       case 'tag':
         return new TagRule({
           whitelist: definition.whitelist,
           blacklist: definition.blacklist,
           requireAny: definition.requireAny,
+          requireAll: definition.requireAll,
+          source: definition.source,
+          caseInsensitive: definition.caseInsensitive,
+          matchNested: definition.matchNested,
         });
       case 'category':
         return new CategoryRule({
           whitelist: definition.whitelist,
           blacklist: definition.blacklist,
+          fromPath: definition.fromPath,
+          matchNested: definition.matchNested,
+          caseInsensitive: definition.caseInsensitive,
         });
       case 'frontmatter':
         return new FrontmatterRule();
+      case 'frontmatterField':
+        return new FrontmatterFieldRule({
+          conditions: definition.conditions,
+          mode: definition.mode,
+        });
       case 'privacy':
         return new PrivacyRule({ allowPrivate: definition.allowPrivate });
+      case 'content':
+        return new ContentRule({
+          includePatterns: definition.includePatterns,
+          excludePatterns: definition.excludePatterns,
+          mode: definition.mode,
+          caseInsensitive: definition.caseInsensitive,
+          regex: definition.regex,
+          maxBytes: definition.maxBytes,
+        });
+      case 'fileMeta':
+        return new FileMetaRule({
+          minSize: definition.minSize,
+          maxSize: definition.maxSize,
+          modifiedWithin: definition.modifiedWithin,
+          modifiedBefore: definition.modifiedBefore,
+          extensions: definition.extensions,
+          vaultPath: definition.vaultPath ?? vaultPath,
+        });
     }
   }
 }

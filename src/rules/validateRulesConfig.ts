@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { isValidGlob } from '../utils/glob.js';
+import { isValidDuration } from '../utils/duration.js';
 import {
   isRuleDefinition,
   type DefinitionValue,
@@ -44,11 +45,17 @@ const globPattern = z
 const globList = z.array(globPattern);
 const tagList = z.array(z.string().min(1, 'Tag must not be empty'));
 
+const duration = z.string().refine(isValidDuration, 'Not a valid duration, e.g. "30d"');
+
+const tagSourceSelector = z.enum(['frontmatter', 'inline', 'task', 'both', 'all']);
+
 const pathRuleSchema = z
   .object({
     type: z.literal('path'),
     include: globList.optional(),
     exclude: globList.optional(),
+    caseInsensitive: z.boolean().optional(),
+    vaultPath: z.string().optional(),
     negate: z.boolean().optional(),
   })
   .strict();
@@ -59,6 +66,10 @@ const tagRuleSchema = z
     whitelist: tagList.optional(),
     blacklist: tagList.optional(),
     requireAny: z.boolean().optional(),
+    requireAll: z.boolean().optional(),
+    source: tagSourceSelector.optional(),
+    caseInsensitive: z.boolean().optional(),
+    matchNested: z.boolean().optional(),
     negate: z.boolean().optional(),
   })
   .strict();
@@ -68,6 +79,9 @@ const categoryRuleSchema = z
     type: z.literal('category'),
     whitelist: tagList.optional(),
     blacklist: tagList.optional(),
+    fromPath: z.boolean().optional(),
+    matchNested: z.boolean().optional(),
+    caseInsensitive: z.boolean().optional(),
     negate: z.boolean().optional(),
   })
   .strict();
@@ -87,15 +101,128 @@ const privacyRuleSchema = z
   })
   .strict();
 
+const fieldOperators = [
+  'exists',
+  'notExists',
+  'truthy',
+  'equals',
+  'notEquals',
+  'in',
+  'notIn',
+  'contains',
+  'matches',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+] as const;
+
+const fieldConditionSchema = z
+  .object({
+    field: z.string().min(1, 'Field path must not be empty'),
+    op: z.enum(fieldOperators),
+    value: z.unknown().optional(),
+    caseInsensitive: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((condition, ctx) => {
+    // `matches` compiles a regex at construction, so an invalid pattern has to
+    // be caught here or it would throw during rule loading instead.
+    if (condition.op !== 'matches') return;
+
+    if (typeof condition.value !== 'string') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: '"matches" requires a string pattern',
+      });
+      return;
+    }
+
+    try {
+      new RegExp(condition.value);
+    } catch (error) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: `Invalid regular expression: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  });
+
+const frontmatterFieldRuleSchema = z
+  .object({
+    type: z.literal('frontmatterField'),
+    conditions: z.array(fieldConditionSchema).min(1, 'At least one condition is required'),
+    mode: z.enum(['all', 'any']).optional(),
+    negate: z.boolean().optional(),
+  })
+  .strict();
+
+const contentRuleSchema = z
+  .object({
+    type: z.literal('content'),
+    includePatterns: z.array(z.string().min(1, 'Pattern must not be empty')).optional(),
+    excludePatterns: z.array(z.string().min(1, 'Pattern must not be empty')).optional(),
+    mode: z.enum(['any', 'all']).optional(),
+    caseInsensitive: z.boolean().optional(),
+    regex: z.boolean().optional(),
+    maxBytes: z.number().int().positive().optional(),
+    negate: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((config, ctx) => {
+    if (!config.regex) return;
+
+    for (const key of ['includePatterns', 'excludePatterns'] as const) {
+      config[key]?.forEach((pattern, index) => {
+        try {
+          new RegExp(pattern);
+        } catch (error) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key, index],
+            message: `Invalid regular expression: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      });
+    }
+  });
+
+const fileMetaRuleSchema = z
+  .object({
+    type: z.literal('fileMeta'),
+    minSize: z.number().int().nonnegative().optional(),
+    maxSize: z.number().int().positive().optional(),
+    modifiedWithin: duration.optional(),
+    modifiedBefore: duration.optional(),
+    extensions: z.array(z.string().min(1, 'Extension must not be empty')).optional(),
+    vaultPath: z.string().optional(),
+    negate: z.boolean().optional(),
+  })
+  .strict();
+
 /** Leaf rule types accepted in `rules.definitions`, for error messages. */
-const RULE_TYPE_NAMES = ['path', 'tag', 'category', 'frontmatter', 'privacy'] as const;
+const RULE_TYPE_NAMES = [
+  'path',
+  'tag',
+  'category',
+  'frontmatter',
+  'frontmatterField',
+  'privacy',
+  'content',
+  'fileMeta',
+] as const;
 
 const ruleDefinitionSchema = z.discriminatedUnion('type', [
   pathRuleSchema,
   tagRuleSchema,
   categoryRuleSchema,
   frontmatterRuleSchema,
+  frontmatterFieldRuleSchema,
   privacyRuleSchema,
+  contentRuleSchema,
+  fileMetaRuleSchema,
 ]);
 
 const ruleNodeSchema: z.ZodType<RuleNode> = z.lazy(() =>
@@ -111,10 +238,41 @@ const ruleNodeSchema: z.ZodType<RuleNode> = z.lazy(() =>
   ])
 );
 
-const definitionValueSchema: z.ZodType<DefinitionValue> = z.union([
-  ruleDefinitionSchema,
-  ruleNodeSchema,
-]);
+/**
+ * A definition is either a concrete rule or a named group.
+ *
+ * Dispatching on the presence of `type` rather than using a plain union keeps
+ * the errors useful: a union reports only that every branch failed, so a typo
+ * in one field of a `tag` rule would be reported against the whole definition
+ * instead of against the field.
+ */
+const definitionValueSchema: z.ZodType<DefinitionValue> = z.unknown().superRefine((value, ctx) => {
+  const schema =
+    value !== null && typeof value === 'object' && 'type' in value
+      ? ruleDefinitionSchema
+      : ruleNodeSchema;
+
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return;
+
+  // Re-raised as custom issues carrying the original path and message: zod
+  // does not accept its own issue objects back, and everything downstream
+  // needs is the pointer and the wording.
+  for (const issue of parsed.error.issues) {
+    if (issue.code === 'unrecognized_keys') {
+      for (const key of issue.keys) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [...issue.path, key],
+          message: `Unknown option "${key}"`,
+        });
+      }
+      continue;
+    }
+
+    ctx.addIssue({ code: 'custom', path: [...issue.path], message: issue.message });
+  }
+}) as unknown as z.ZodType<DefinitionValue>;
 
 const rulesSectionV2Schema = z
   .object({

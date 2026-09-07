@@ -230,3 +230,134 @@ describe('validateRulesConfig', () => {
     });
   });
 });
+
+describe('validateRulesConfig new rule types', () => {
+  const errorsFor = (definitions: Record<string, unknown>, match: unknown = { rule: 'a' }) => {
+    const outcome = validateRulesConfig({ rulesVersion: 2, rules: { definitions, match } });
+    return outcome.valid ? [] : outcome.errors;
+  };
+
+  it('accepts a frontmatterField rule with every operator', () => {
+    const operators = [
+      'exists',
+      'notExists',
+      'truthy',
+      'equals',
+      'notEquals',
+      'in',
+      'notIn',
+      'contains',
+      'matches',
+      'gt',
+      'gte',
+      'lt',
+      'lte',
+    ];
+
+    const conditions = operators.map((op) => ({
+      field: 'status',
+      op,
+      value: op === 'in' || op === 'notIn' ? ['a'] : op === 'matches' ? '^a$' : 'a',
+    }));
+
+    expect(errorsFor({ a: { type: 'frontmatterField', conditions } })).toEqual([]);
+  });
+
+  it('rejects an unknown operator', () => {
+    expect(
+      errorsFor({ a: { type: 'frontmatterField', conditions: [{ field: 'x', op: 'sortof' }] } })[0]
+        .path
+    ).toBe('rules.definitions.a.conditions[0].op');
+  });
+
+  it('rejects an invalid regex for matches, rather than throwing at load', () => {
+    const [error] = errorsFor({
+      a: { type: 'frontmatterField', conditions: [{ field: 'x', op: 'matches', value: '(' }] },
+    });
+
+    expect(error.path).toBe('rules.definitions.a.conditions[0].value');
+    expect(error.message).toContain('Invalid regular expression');
+  });
+
+  it('rejects a non-string pattern for matches', () => {
+    const [error] = errorsFor({
+      a: { type: 'frontmatterField', conditions: [{ field: 'x', op: 'matches', value: 7 }] },
+    });
+
+    expect(error.message).toContain('requires a string pattern');
+  });
+
+  it('requires at least one condition', () => {
+    expect(errorsFor({ a: { type: 'frontmatterField', conditions: [] } })[0].path).toBe(
+      'rules.definitions.a.conditions'
+    );
+  });
+
+  it('accepts a content rule', () => {
+    expect(
+      errorsFor({
+        a: { type: 'content', includePatterns: ['publish'], mode: 'all', maxBytes: 2048 },
+      })
+    ).toEqual([]);
+  });
+
+  it('rejects an invalid content regex only when regex mode is on', () => {
+    expect(errorsFor({ a: { type: 'content', includePatterns: ['('] } })).toEqual([]);
+    expect(errorsFor({ a: { type: 'content', includePatterns: ['('], regex: true } })[0].path).toBe(
+      'rules.definitions.a.includePatterns[0]'
+    );
+  });
+
+  it('rejects a non-positive maxBytes', () => {
+    expect(errorsFor({ a: { type: 'content', maxBytes: 0 } })[0].path).toBe(
+      'rules.definitions.a.maxBytes'
+    );
+  });
+
+  it('accepts a fileMeta rule', () => {
+    expect(
+      errorsFor({
+        a: {
+          type: 'fileMeta',
+          minSize: 10,
+          maxSize: 1000,
+          modifiedWithin: '30d',
+          extensions: ['md'],
+        },
+      })
+    ).toEqual([]);
+  });
+
+  it('rejects a malformed duration', () => {
+    const [error] = errorsFor({ a: { type: 'fileMeta', modifiedWithin: 'soon' } });
+
+    expect(error.path).toBe('rules.definitions.a.modifiedWithin');
+    expect(error.message).toContain('valid duration');
+  });
+
+  it('accepts the extended tag and category options', () => {
+    expect(
+      errorsFor(
+        {
+          a: {
+            type: 'tag',
+            whitelist: ['project/*'],
+            requireAll: true,
+            source: 'all',
+            matchNested: true,
+            caseInsensitive: true,
+          },
+          b: { type: 'category', whitelist: ['Work'], fromPath: true, matchNested: true },
+          c: { type: 'path', include: ['Work/**'], caseInsensitive: true },
+        },
+        { all: [{ rule: 'a' }, { rule: 'b' }, { rule: 'c' }] }
+      )
+    ).toEqual([]);
+  });
+
+  it('rejects an unknown tag source', () => {
+    expect(errorsFor({ a: { type: 'tag', source: 'somewhere' } })[0].path).toBe(
+      'rules.definitions.a.source'
+    );
+  });
+});

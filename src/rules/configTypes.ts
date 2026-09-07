@@ -25,6 +25,8 @@ export interface PathRuleDefinition extends BaseRuleDefinition {
   type: 'path';
   include?: string[];
   exclude?: string[];
+  caseInsensitive?: boolean;
+  vaultPath?: string;
 }
 
 export interface TagRuleDefinition extends BaseRuleDefinition {
@@ -32,16 +34,47 @@ export interface TagRuleDefinition extends BaseRuleDefinition {
   whitelist?: string[];
   blacklist?: string[];
   requireAny?: boolean;
+  requireAll?: boolean;
+  source?: 'frontmatter' | 'inline' | 'task' | 'both' | 'all';
+  caseInsensitive?: boolean;
+  matchNested?: boolean;
 }
 
 export interface CategoryRuleDefinition extends BaseRuleDefinition {
   type: 'category';
   whitelist?: string[];
   blacklist?: string[];
+  fromPath?: boolean;
+  matchNested?: boolean;
+  caseInsensitive?: boolean;
 }
 
 export interface FrontmatterRuleDefinition extends BaseRuleDefinition {
   type: 'frontmatter';
+}
+
+export interface FrontmatterFieldRuleDefinition extends BaseRuleDefinition {
+  type: 'frontmatterField';
+  conditions: Array<{
+    field: string;
+    op:
+      | 'exists'
+      | 'notExists'
+      | 'truthy'
+      | 'equals'
+      | 'notEquals'
+      | 'in'
+      | 'notIn'
+      | 'contains'
+      | 'matches'
+      | 'gt'
+      | 'gte'
+      | 'lt'
+      | 'lte';
+    value?: unknown;
+    caseInsensitive?: boolean;
+  }>;
+  mode?: 'all' | 'any';
 }
 
 export interface PrivacyRuleDefinition extends BaseRuleDefinition {
@@ -49,12 +82,35 @@ export interface PrivacyRuleDefinition extends BaseRuleDefinition {
   allowPrivate?: boolean;
 }
 
+export interface ContentRuleDefinition extends BaseRuleDefinition {
+  type: 'content';
+  includePatterns?: string[];
+  excludePatterns?: string[];
+  mode?: 'any' | 'all';
+  caseInsensitive?: boolean;
+  regex?: boolean;
+  maxBytes?: number;
+}
+
+export interface FileMetaRuleDefinition extends BaseRuleDefinition {
+  type: 'fileMeta';
+  minSize?: number;
+  maxSize?: number;
+  modifiedWithin?: string;
+  modifiedBefore?: string;
+  extensions?: string[];
+  vaultPath?: string;
+}
+
 export type RuleDefinition =
   | PathRuleDefinition
   | TagRuleDefinition
   | CategoryRuleDefinition
   | FrontmatterRuleDefinition
-  | PrivacyRuleDefinition;
+  | FrontmatterFieldRuleDefinition
+  | PrivacyRuleDefinition
+  | ContentRuleDefinition
+  | FileMetaRuleDefinition;
 
 /**
  * A definition is either a concrete rule (discriminated by `type`) or a named
