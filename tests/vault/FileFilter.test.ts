@@ -200,6 +200,34 @@ describe('FileFilter', () => {
       expect(bookmarkFilter.filter('AIM/bookmark.md').allowed).toBe(true);
     });
 
+    it('should support brace alternation', () => {
+      const filter = new FileFilter({ patterns: ['{drafts,scratch}/**'] });
+
+      expect(filter.filter('drafts/note.md').allowed).toBe(false);
+      expect(filter.filter('scratch/note.md').allowed).toBe(false);
+      expect(filter.filter('notes/note.md').allowed).toBe(true);
+    });
+
+    it('should support character classes', () => {
+      const filter = new FileFilter({ patterns: ['archive/20[0-9][0-9]/**'] });
+
+      expect(filter.filter('archive/2024/note.md').allowed).toBe(false);
+      expect(filter.filter('archive/draft/note.md').allowed).toBe(true);
+    });
+
+    it('should support negated character classes', () => {
+      const filter = new FileFilter({ patterns: ['note[!0-9].md'] });
+
+      expect(filter.filter('notex.md').allowed).toBe(false);
+      expect(filter.filter('note1.md').allowed).toBe(true);
+    });
+
+    it('should return the original pattern strings', () => {
+      const filter = new FileFilter({ patterns: ['.git/**', '{a,b}/*.md'] });
+
+      expect(filter.getIgnorePatterns()).toEqual(['.git/**', '{a,b}/*.md']);
+    });
+
     it('should still scope a leading ** to the rest of the pattern', () => {
       const filter = new FileFilter({ patterns: ['**/drafts/*.md'] });
 
