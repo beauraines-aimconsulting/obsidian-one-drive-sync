@@ -11,6 +11,10 @@ export interface CliOptions {
   migrateRules: boolean;
   /** Confirm a destructive action that otherwise only previews. */
   yes: boolean;
+  /** Vault-relative path of a file to evaluate and explain. */
+  explain?: string;
+  /** Emit the explain result as raw JSON instead of a tree. */
+  explainJson: boolean;
 }
 
 export interface CliRunResult {

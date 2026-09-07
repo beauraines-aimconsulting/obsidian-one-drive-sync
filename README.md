@@ -213,6 +213,8 @@ service.addRule(
 
 Rules are usually declared in the JSON config file (`RULES_CONFIG`, default
 `config.json`) alongside the `config` section. Two schema versions are supported.
+[`config.example.json`](config.example.json) is a complete, validated version 2
+document exercising every rule type, nesting, and negation.
 
 **Version 2** (`rulesVersion: 2`) names each rule under `definitions` and combines
 them with a nested `match` tree:
@@ -307,6 +309,25 @@ so `^` and `$` anchor to the whole note. Notes larger than `maxBytes` (default
 `w`. A file that cannot be read fails the rule rather than raising an error,
 since it may simply have been deleted mid-sync.
 
+#### Glob syntax
+
+Every glob — `path` include/exclude, `tag` and `category` patterns, and
+`ignorePatterns` — is matched by the same engine, so the syntax is uniform:
+
+| Pattern | Matches |
+| --- | --- |
+| `*` | any run of characters within one path segment |
+| `**` | any number of segments, including none |
+| `?` | exactly one character |
+| `{a,b}` | either alternative — `Work/{notes,docs}/**` |
+| `[abc]`, `[a-z]` | one character from the set or range |
+| `[!abc]` | one character *not* in the set |
+| `!pattern` | negation, in `path.include` only |
+
+Matching is case-sensitive unless the rule sets `caseInsensitive: true`. Paths
+are always compared vault-relative with forward slashes, on every platform, so
+the same config works on macOS, Linux, and Windows.
+
 #### Tag sources
 
 Obsidian tags reach a note three ways, and they do not all mean the same thing.
@@ -320,6 +341,37 @@ topic label for the note. `TagRule.source` selects which are considered:
 | `task` | `#tags` on task/checkbox lines only |
 | `both` *(default)* | frontmatter + inline |
 | `all` | all three |
+
+#### Explaining a decision
+
+`--explain` evaluates one file and prints the decision as a tree, which is the
+fastest way to answer "why was this note not published?" once rules nest:
+
+```text
+$ npm start -- --explain 'Projects/alpha.md'
+📄 Projects/alpha.md
+   Decision: ⛔ INELIGIBLE
+
+   ⛔ match
+   ├─ ✅ notPrivate (privacy) — Not marked as private
+   ├─ ✅ publishableArea (path) — Path passed include/exclude checks
+   ├─ ⛔ publishable
+   │  ├─ ⛔ sharedTag (tag) — None of the frontmatter and inline tags match whitelist: share
+   │  └─ ⛔ reviewedAndPublished (frontmatterField) — meta.status equals: undefined !== "published"
+   └─ ⛔ not(isDraft)
+      └─ ✅ isDraft (frontmatterField) — status equals: "draft" equals expected
+
+   Tags: frontmatter [project] · inline [msft] · task [waiting]
+```
+
+The tag breakdown is printed because the `source` default makes "which bucket
+did that tag land in?" the usual follow-up question. Group nodes show no reason
+of their own — the children underneath them are the reason.
+
+Exit codes make it scriptable: **0** eligible, **1** ineligible, **2** could not
+be evaluated (file missing, outside the vault, unreadable, invalid rules config,
+or unparseable frontmatter). `--explain-json` emits the raw `EligibilityResult`
+instead, including the full nested trace, for piping into `jq`.
 
 **Version 1** is the original flat shape and still loads unchanged:
 
@@ -544,6 +596,12 @@ Options:
   --watch          Keep running and sync changes as they happen
                    (combine with --sync for an initial full sync)
   --force-sync     Re-upload all eligible files regardless of changes
+  --explain <path> Evaluate one vault file and print why it was or was not
+                   eligible (exit 0 eligible, 1 ineligible, 2 error)
+  --explain-json   With --explain, emit the raw result as JSON
+  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only
+                   unless --yes is given)
+  --yes, -y        Confirm an action that otherwise only previews
   --probe          Test Graph API connectivity and permissions
   --logout         Clear cached authentication tokens
   --help           Show help
@@ -555,6 +613,7 @@ Examples:
 npm run dev -- --help
 npm run dev -- --config ./config/rules.json --dry-run
 npm start -- --dry-run
+npm start -- --explain 'MSFT/notes/planning.md'
 ```
 
 ### What the CLI does
@@ -564,6 +623,7 @@ npm start -- --dry-run
 - scans Markdown files in dry-run mode
 - or watches the vault and evaluates add/change events continuously
 - prints one line per file with an eligible / not-eligible result
+- or explains a single file's decision in detail with `--explain`
 
 ## Health endpoint
 

@@ -14,7 +14,6 @@ import type {
   EligibilityResult,
   PublicationRuleConfig,
   CacheEntry,
-  RuleResult,
 } from './types.js';
 
 function hashInput(...parts: string[]): string {
@@ -162,10 +161,8 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     // provenance travels alongside it under a reserved key.
     const allTags = Array.from(new Set([...frontmatterTags, ...inlineTags, ...taskTags]));
 
-    const evaluationFrontmatter = attachTagSources(
-      { ...frontmatter, tags: allTags },
-      { frontmatter: frontmatterTags, inline: inlineTags, task: taskTags }
-    );
+    const tagSources = { frontmatter: frontmatterTags, inline: inlineTags, task: taskTags };
+    const evaluationFrontmatter = attachTagSources({ ...frontmatter, tags: allTags }, tagSources);
 
     // Evaluate using rule engine
     const engineResult = this.ruleEngine.evaluate(
@@ -178,8 +175,9 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     const result: EligibilityResult = {
       eligible: engineResult.eligible,
       reason: engineResult.reason,
-      rules: engineResult.appliedRules as RuleResult[],
+      rules: engineResult.appliedRules,
       evaluatedAt: Date.now(),
+      tagSources,
     };
 
     // Cache the result

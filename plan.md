@@ -284,9 +284,22 @@ Issue #66 is closed.
 **Remaining work, in suggested order:**
 
 1. **Phase 4 epic (#25):**
-   - **#27 Scheduled syncs** — smallest of the three and a natural follow-on to `--watch`.
-   - **#28 Advanced filtering and rule options** — builds on the existing rules engine.
-   - **#26 Web UI for managing rules** — largest; best deferred until the above settle.
+   - **#28 Advanced filtering and rule options** — ✅ complete, delivered as four stacked PRs
+     (#83 shared glob matcher, #84 rules schema v2, #85 new and extended rule types,
+     #86 `--explain` and documentation).
+   - **#27 Scheduled syncs** — in progress (#87 scheduler core, #88 CLI and contention,
+     #89 run history and health).
+   - **#26 Web UI for managing rules** — largest; deferred until the above settle.
+
+**Decisions recorded for #28:**
+
+- `picomatch` is the single glob implementation; every rule and `ignorePatterns` share it.
+- `zod` validates the rules document, reporting every problem at once with a config path.
+- Schema evolution goes through an explicit `rulesVersion` field rather than shape sniffing.
+  Version 1 documents keep working, migrated in memory on load; `--migrate-rules` persists
+  the rewrite.
+- Tags are differentiated by where they were written. Task-line tags no longer count toward
+  `TagRule` by default, and nested inline tags (`#project/alpha`) are extracted in full.
 
 **Current repository state:** `main` is up to date with merged PRs through #82, and no PRs are
 open. The suite runs 437 tests across 24 files; build, tests, and lint are green. Phase 4 (#25)
@@ -351,6 +364,6 @@ system adds state to manage without a matching benefit. No git integration code 
   considered and dropped.
 - Phase 3 added: containerization with a volume-mounted vault, health endpoint, and CI image
   builds.
-- Phase 4 could add: web UI for managing rules, scheduled syncs, more advanced filtering
+- Phase 4 adds: advanced filtering (done), scheduled syncs, and a web UI for managing rules
 - All code should be modular to support future extensibility
 - **Human review is required for all PRs** - no automatic merges

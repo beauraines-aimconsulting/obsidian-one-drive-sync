@@ -23,6 +23,8 @@ export function parseArgs(argv: string[]): CliOptions {
     watch: false,
     migrateRules: false,
     yes: false,
+    explain: undefined,
+    explainJson: false,
     configPath: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -35,6 +37,13 @@ export function parseArgs(argv: string[]): CliOptions {
     else if (argv[i] === '--watch') options.watch = true;
     else if (argv[i] === '--migrate-rules') options.migrateRules = true;
     else if (argv[i] === '--yes' || argv[i] === '-y') options.yes = true;
+    else if (argv[i] === '--explain') {
+      const value = argv[++i];
+      if (value === undefined || value.startsWith('-')) {
+        throw new Error('--explain requires a vault-relative file path');
+      }
+      options.explain = value;
+    } else if (argv[i] === '--explain-json') options.explainJson = true;
     else if (argv[i] === '--config') options.configPath = argv[++i];
     else throw new Error(`Unknown option: ${argv[i]}`);
   }
@@ -52,11 +61,26 @@ export function parseArgs(argv: string[]): CliOptions {
     }
   }
 
+  // --explain is a one-shot inspection of a single file; pairing it with a mode
+  // that watches or uploads would be ambiguous about what actually ran.
+  if (options.explain !== undefined) {
+    const conflicting = (
+      ['sync', 'watch', 'probe', 'logout', 'forceSync', 'migrateRules'] as const
+    ).filter((flag) => options[flag]);
+    if (conflicting.length > 0) {
+      throw new Error(
+        '--explain cannot be combined with --sync, --watch, --probe, --logout, or --migrate-rules'
+      );
+    }
+  } else if (options.explainJson) {
+    throw new Error('--explain-json requires --explain <path>');
+  }
+
   return options;
 }
 
 export function usage(): string {
-  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only\n                   unless --yes is given)\n  --yes, -y        Confirm an action that otherwise only previews\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
+  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --explain <path> Evaluate one vault file and print why it was or was not\n                   eligible (exit 0 eligible, 1 ineligible, 2 error)\n  --explain-json   With --explain, emit the raw result as JSON\n  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only\n                   unless --yes is given)\n  --yes, -y        Confirm an action that otherwise only previews\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
 }
 
 async function runProbe(config: import('./config/types.js').AppConfig): Promise<number> {
@@ -70,7 +94,9 @@ async function runProbe(config: import('./config/types.js').AppConfig): Promise<
     // Use Azure CLI well-known client ID for quick connectivity test
     console.log('🔍 Graph API Quick Connectivity Test (Azure CLI credentials)');
     console.log('   No custom app registration — using Azure CLI client ID');
-    console.log('   Note: Files.ReadWrite may not be available without a custom app registration\n');
+    console.log(
+      '   Note: Files.ReadWrite may not be available without a custom app registration\n'
+    );
     authProvider = GraphAuthProvider.withAzureCliCredentials(tenantId);
     quickTest = true;
   } else {
@@ -202,6 +228,21 @@ async function main(): Promise<number> {
     const { migrateRulesFile } = await import('./cli/migrateRules.js');
     const target = configPath ?? path.resolve(config.rulesConfig);
     return migrateRulesFile(target, { confirm: options.yes });
+  }
+
+  if (options.explain !== undefined) {
+    const { explainFile } = await import('./cli/explain.js');
+    const rulesPath = configPath ?? config.rulesConfig;
+    const { exitCode, output } = await explainFile(options.explain, {
+      vaultPath: config.vaultPath,
+      rulesPath: rulesPath && fs.existsSync(rulesPath) ? rulesPath : undefined,
+      json: options.explainJson,
+      // Rule-loading chatter would be interleaved with the trace, and with
+      // --explain-json it would corrupt the JSON on stdout.
+      logLevel: config.logLevel === 'debug' ? 'debug' : 'warn',
+    });
+    console.log(output);
+    return exitCode;
   }
 
   // Graph API probe mode

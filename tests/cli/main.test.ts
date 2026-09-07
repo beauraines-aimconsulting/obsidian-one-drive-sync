@@ -13,6 +13,7 @@ describe('CLI main', () => {
       watch: false,
       migrateRules: false,
       yes: false,
+      explainJson: false,
       configPath: 'custom.json',
     });
   });
@@ -28,6 +29,7 @@ describe('CLI main', () => {
       watch: false,
       migrateRules: false,
       yes: false,
+      explainJson: false,
       configPath: undefined,
     });
   });
@@ -55,5 +57,52 @@ describe('CLI main', () => {
 
   it('returns usage text', () => {
     expect(usage()).toContain('obsidian-one-drive-sync');
+  });
+});
+
+describe('CLI --explain', () => {
+  it('parses a file path', () => {
+    const options = parseArgs(['--explain', 'Notes/a.md']);
+    expect(options.explain).toBe('Notes/a.md');
+    expect(options.explainJson).toBe(false);
+  });
+
+  it('parses --explain-json alongside --explain', () => {
+    const options = parseArgs(['--explain', 'Notes/a.md', '--explain-json']);
+    expect(options.explainJson).toBe(true);
+  });
+
+  it('works with --config', () => {
+    const options = parseArgs(['--config', 'custom.json', '--explain', 'a.md']);
+    expect(options.configPath).toBe('custom.json');
+    expect(options.explain).toBe('a.md');
+  });
+
+  it('requires a path', () => {
+    expect(() => parseArgs(['--explain'])).toThrow(/requires a vault-relative file path/);
+  });
+
+  it('rejects a following flag in place of a path', () => {
+    expect(() => parseArgs(['--explain', '--dry-run'])).toThrow(
+      /requires a vault-relative file path/
+    );
+  });
+
+  it.each(['--sync', '--watch', '--probe', '--logout', '--force-sync', '--migrate-rules'])(
+    'rejects being combined with %s',
+    (flag) => {
+      expect(() => parseArgs(['--explain', 'a.md', flag])).toThrow(
+        /--explain cannot be combined with/
+      );
+    }
+  );
+
+  it('rejects --explain-json on its own', () => {
+    expect(() => parseArgs(['--explain-json'])).toThrow(/requires --explain/);
+  });
+
+  it('is documented in the usage text', () => {
+    expect(usage()).toContain('--explain <path>');
+    expect(usage()).toContain('--explain-json');
   });
 });

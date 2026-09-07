@@ -1,6 +1,7 @@
 export type { Frontmatter, FrontmatterParseError } from '../parser/types.js';
 
 import type { FrontmatterParseError } from '../parser/types.js';
+import type { TagSources } from '../rules/tagSources.js';
 
 export interface PublicationServiceConfig {
   enableCache?: boolean;
@@ -15,6 +16,12 @@ export interface RuleResult {
   name: string;
   passed: boolean;
   reason: string;
+  /**
+   * Nested outcomes, populated by group (`all`/`any`/`not`) rules. Present so
+   * that a decision made several levels deep can be explained rather than
+   * reported as one opaque pass/fail.
+   */
+  children?: RuleResult[];
 }
 
 export interface EligibilityResult {
@@ -28,6 +35,11 @@ export interface EligibilityResult {
    * correctly evaluated and simply failed a rule.
    */
   parseError?: FrontmatterParseError;
+  /**
+   * Which tags were found in which position. Absent when the file could not be
+   * evaluated (e.g. a frontmatter parse error).
+   */
+  tagSources?: TagSources;
 }
 
 export interface PublicationRuleConfig {
