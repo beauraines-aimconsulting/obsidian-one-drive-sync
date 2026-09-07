@@ -250,8 +250,7 @@ DEBOUNCE_DELAY=300
 **Phase 1 — complete.** Project scaffolding, configuration system, logging & utilities,
 frontmatter parser, inline tag parser, file filter, publication rules, rule engine, vault
 watcher, vault service, publication service, CLI entry point, unit tests, integration tests,
-and documentation are all merged. The suite runs 414 tests across 24 files; build, tests, and
-lint are green.
+and documentation are all merged.
 
 **Phase 2 (OneDrive sync + Graph auth) — complete, with git versioning dropped.** Merged work
 covers MSAL device-code authentication, persistent token cache, the Graph connectivity probe
@@ -269,21 +268,29 @@ sync-state volume permission issue (#73) was fixed in #75 and is closed.
 developer's real `.env` from `process.cwd()`. Tests run against a temp sandbox and an isolated
 env object, which removed four environment-dependent local test failures (#78).
 
+**Frontmatter parse error handling (#63) — complete.** Parse failures now report the offending
+filename with actionable context instead of raw YAMLException dumps, and affected notes are no
+longer silently dropped from sync (#79).
+
+**Configurable note exclusions (#76) — complete.** `extraIgnorePatterns` adds to the built-in
+defaults rather than replacing them, so callers can extend exclusions without re-declaring the
+`DEFAULT_CONFIG` list (#80).
+
+**CI dependency refresh (#66) — complete.** All GitHub Actions were bumped to their current
+majors, clearing the Node 20 runner deprecation warnings (#81). The app runtime then moved to
+Node 22 LTS — `ci.yml`, the three `Dockerfile` stages, and a new `engines.node: ">=22"` (#82).
+Issue #66 is closed.
+
 **Remaining work, in suggested order:**
 
-1. **#63 — Frontmatter parse error handling** (bug). YAMLException dumps are unhelpful, the
-   offending filename is missing, and affected notes are silently excluded from sync. Highest
-   user impact of the open items.
-2. **#66 — CI: bump GitHub Actions to latest majors.** Clears Node 20 deprecation warnings;
-   mechanical and low risk.
-3. **#76 — Make note exclusions configurable** instead of hardcoded in `DEFAULT_CONFIG`.
-   Simpler now that `ConfigManager` takes explicit options.
-4. **Phase 4 epic (#25):**
+1. **Phase 4 epic (#25):**
    - **#27 Scheduled syncs** — smallest of the three and a natural follow-on to `--watch`.
    - **#28 Advanced filtering and rule options** — builds on the existing rules engine.
    - **#26 Web UI for managing rules** — largest; best deferred until the above settle.
 
-**Current repository state:** `main` is up to date with merged PRs through #78.
+**Current repository state:** `main` is up to date with merged PRs through #82, and no PRs are
+open. The suite runs 437 tests across 24 files; build, tests, and lint are green. Phase 4 (#25)
+is the only remaining scope.
 
 ### Scope change: git versioning dropped
 
