@@ -190,7 +190,7 @@ describe('FileFilter', () => {
 
     it('should exclude bookmark notes at any depth', () => {
       const bookmarkFilter = new FileFilter({
-        patterns: ['*.bookmark.md', '**/*.bookmark.md'],
+        patterns: ['**/*.bookmark.md'],
       });
 
       expect(bookmarkFilter.filter('Some Page.bookmark.md').allowed).toBe(false);
@@ -198,6 +198,14 @@ describe('FileFilter', () => {
       expect(bookmarkFilter.filter('MSFT/nested/deep/Page.bookmark.md').allowed).toBe(false);
       expect(bookmarkFilter.filter('AIM/Mike Mallahan 2026-09-02.md').allowed).toBe(true);
       expect(bookmarkFilter.filter('AIM/bookmark.md').allowed).toBe(true);
+    });
+
+    it('should still scope a leading ** to the rest of the pattern', () => {
+      const filter = new FileFilter({ patterns: ['**/drafts/*.md'] });
+
+      expect(filter.filter('drafts/note.md').allowed).toBe(false);
+      expect(filter.filter('AIM/drafts/note.md').allowed).toBe(false);
+      expect(filter.filter('AIM/notes/note.md').allowed).toBe(true);
     });
   });
 });

@@ -82,7 +82,7 @@ OUTPUT_PATH=./output
 ONEDRIVE_FOLDER=ObsidianPublished
 LOG_LEVEL=info
 DEBOUNCE_DELAY=300
-IGNORE_PATTERNS=.git/**,.obsidian/**,node_modules/**
+EXTRA_IGNORE_PATTERNS=**/*.bookmark.md
 RULES_CONFIG=./config/rules.json
 ```
 
@@ -96,7 +96,7 @@ Or create a JSON config file and point `RULES_CONFIG` at it:
     "oneDriveFolder": "ObsidianPublished",
     "logLevel": "info",
     "debounceDelay": 300,
-    "ignorePatterns": [".git/**", ".obsidian/**", "node_modules/**"]
+    "extraIgnorePatterns": ["**/*.bookmark.md", "Archive/**"]
   }
 }
 ```
@@ -140,7 +140,8 @@ Configuration is loaded in this order:
 | `RULES_CONFIG` | no | Path to the JSON config file |
 | `LOG_LEVEL` | no | `debug`, `info`, `warn`, or `error` |
 | `DEBOUNCE_DELAY` | no | File change debounce in milliseconds |
-| `IGNORE_PATTERNS` | no | Comma-separated glob patterns |
+| `IGNORE_PATTERNS` | no | Comma-separated glob patterns that **replace** the default ignore list |
+| `EXTRA_IGNORE_PATTERNS` | no | Comma-separated glob patterns **appended** to the ignore list in effect |
 | `HEALTH_PORT` | no | Port for the health endpoint in watch mode; defaults to `8080` |
 | `WATCH_USE_POLLING` | no | Set to `true` to poll for changes instead of using native filesystem events. Required for bind-mounted vaults in Docker on macOS/Windows |
 | `WATCH_POLL_INTERVAL` | no | Poll interval in milliseconds when polling is enabled; defaults to `1000` |
@@ -155,11 +156,17 @@ Configuration is loaded in this order:
 - `usePolling`: `false`
 - `pollInterval`: `1000`
 - `ignorePatterns`: `.git/**`, `.obsidian/**`, `.trash/**`, `node_modules/**`, `Templates/**`,
-  `.DS_Store`, `*.bookmark.md`, `**/*.bookmark.md`
+  `.DS_Store`
+- `extraIgnorePatterns`: empty
 
-> Setting `IGNORE_PATTERNS` or `ignorePatterns` **replaces** this list rather than adding to it —
-> re-include the defaults you still want. Both `*.bookmark.md` and `**/*.bookmark.md` are needed:
-> the first matches vault-root files, the second matches files in subfolders.
+> `IGNORE_PATTERNS` / `ignorePatterns` **replace** the defaults — a warning is logged listing the
+> defaults that are dropped. To add exclusions while keeping the defaults, use
+> `EXTRA_IGNORE_PATTERNS` / `extraIgnorePatterns`, which is appended to whichever base list is in
+> effect. Vault-specific conventions (for example `**/*.bookmark.md`) belong here rather than in the
+> application defaults.
+>
+> A leading `**/` matches at any depth *including* the vault root, so `**/*.bookmark.md` covers both
+> `Page.bookmark.md` and `AIM/Page.bookmark.md`.
 
 ### Notes
 

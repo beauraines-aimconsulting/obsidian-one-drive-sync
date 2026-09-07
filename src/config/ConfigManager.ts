@@ -26,10 +26,16 @@ const DEFAULT_CONFIG: Partial<AppConfig> = {
     'node_modules/**',
     'Templates/**',
     '.DS_Store',
-    '*.bookmark.md',
-    '**/*.bookmark.md',
   ],
+  extraIgnorePatterns: [],
 };
+
+function parsePatternList(value: string): string[] {
+  return value
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
 
 export type EnvSource = Record<string, string | undefined>;
 
@@ -159,12 +165,31 @@ export class ConfigManager {
     merged.vaultPath = expandTilde(merged.vaultPath);
     merged.outputPath = expandTilde(merged.outputPath);
 
-    // Parse ignore patterns if provided as env string
-    if (env.IGNORE_PATTERNS) {
-      merged.ignorePatterns = env.IGNORE_PATTERNS.split(',').map((p) =>
-        p.trim()
+    // Ignore patterns: `ignorePatterns` replaces the defaults wholesale, while
+    // `extraIgnorePatterns` is additive on top of whichever base is in effect.
+    const basePatterns = env.IGNORE_PATTERNS
+      ? parsePatternList(env.IGNORE_PATTERNS)
+      : (configFromFile.ignorePatterns ?? DEFAULT_CONFIG.ignorePatterns ?? []);
+
+    const extraPatterns = [
+      ...(configFromFile.extraIgnorePatterns ?? []),
+      ...(env.EXTRA_IGNORE_PATTERNS ? parsePatternList(env.EXTRA_IGNORE_PATTERNS) : []),
+    ];
+
+    if (env.IGNORE_PATTERNS || configFromFile.ignorePatterns) {
+      const dropped = (DEFAULT_CONFIG.ignorePatterns ?? []).filter(
+        (p) => !basePatterns.includes(p) && !extraPatterns.includes(p)
       );
+      if (dropped.length > 0) {
+        console.warn(
+          `ignorePatterns replaces the defaults rather than adding to them; these defaults are no longer applied: ${dropped.join(', ')}. ` +
+            'Use extraIgnorePatterns / EXTRA_IGNORE_PATTERNS to add patterns while keeping the defaults.'
+        );
+      }
     }
+
+    merged.extraIgnorePatterns = extraPatterns;
+    merged.ignorePatterns = [...new Set([...basePatterns, ...extraPatterns])];
 
     // Graph API config (optional)
     merged.clientId =

@@ -5,6 +5,8 @@ export interface AppConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   debounceDelay: number;
   ignorePatterns?: string[];
+  /** Patterns appended to `ignorePatterns` instead of replacing them. */
+  extraIgnorePatterns?: string[];
   clientId?: string;
   tenantId?: string;
   oneDriveFolder: string;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -69,8 +69,9 @@ describe('ConfigManager', () => {
     expect(config.oneDriveFolder).toBe('ObsidianPublished');
     expect(config.ignorePatterns).toContain('.git/**');
     expect(config.ignorePatterns).toContain('.obsidian/**');
-    expect(config.ignorePatterns).toContain('*.bookmark.md');
-    expect(config.ignorePatterns).toContain('**/*.bookmark.md');
+    expect(config.ignorePatterns).toContain('.trash/**');
+    expect(config.ignorePatterns).not.toContain('*.bookmark.md');
+    expect(config.extraIgnorePatterns).toEqual([]);
   });
 
   it('should parse ignore patterns from env', async () => {
@@ -83,6 +84,55 @@ describe('ConfigManager', () => {
     expect(config.ignorePatterns).toContain('.git/**');
     expect(config.ignorePatterns).toContain('.obsidian/**');
     expect(config.ignorePatterns).toContain('custom/**');
+    expect(config.ignorePatterns).not.toContain('.trash/**');
+  });
+
+  it('should append EXTRA_IGNORE_PATTERNS to the defaults', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.EXTRA_IGNORE_PATTERNS = '**/*.bookmark.md, Archive/**';
+
+    const config = await configManager.load();
+
+    expect(config.ignorePatterns).toContain('.git/**');
+    expect(config.ignorePatterns).toContain('.obsidian/**');
+    expect(config.ignorePatterns).toContain('.trash/**');
+    expect(config.ignorePatterns).toContain('**/*.bookmark.md');
+    expect(config.ignorePatterns).toContain('Archive/**');
+    expect(config.extraIgnorePatterns).toEqual(['**/*.bookmark.md', 'Archive/**']);
+  });
+
+  it('should append EXTRA_IGNORE_PATTERNS to a replaced ignore list', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.IGNORE_PATTERNS = 'custom/**';
+    env.EXTRA_IGNORE_PATTERNS = '**/*.bookmark.md';
+
+    const config = await configManager.load();
+
+    expect(config.ignorePatterns).toEqual(['custom/**', '**/*.bookmark.md']);
+  });
+
+  it('should not duplicate patterns present in both lists', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.EXTRA_IGNORE_PATTERNS = '.git/**, Archive/**';
+
+    const config = await configManager.load();
+
+    expect(config.ignorePatterns?.filter((p) => p === '.git/**')).toHaveLength(1);
+  });
+
+  it('should warn when ignorePatterns drops defaults', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.IGNORE_PATTERNS = 'custom/**';
+
+    await configManager.load();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('.obsidian/**'));
+    warn.mockRestore();
   });
 
   it('should preserve a OneDrive folder as a remote path', async () => {
@@ -207,6 +257,7 @@ describe('ConfigManager', () => {
           logLevel: 'warn',
           debounceDelay: 750,
           ignorePatterns: ['temp/**', '.cache/**'],
+          extraIgnorePatterns: ['**/*.bookmark.md'],
         },
       })
     );
@@ -220,7 +271,11 @@ describe('ConfigManager', () => {
     expect(config.oneDriveFolder).toBe('Team Notes');
     expect(config.logLevel).toBe('warn');
     expect(config.debounceDelay).toBe(750);
-    expect(config.ignorePatterns).toEqual(['temp/**', '.cache/**']);
+    expect(config.ignorePatterns).toEqual([
+      'temp/**',
+      '.cache/**',
+      '**/*.bookmark.md',
+    ]);
   });
 
   it('should let env vars override config file values', async () => {
