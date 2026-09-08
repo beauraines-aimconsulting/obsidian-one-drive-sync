@@ -14,7 +14,11 @@ const UNIT_MILLISECONDS: Record<string, number> = {
   w: 7 * 24 * 60 * 60 * 1000,
 };
 
-const DURATION_PATTERN = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w)$/i;
+// Fractional amounts are deliberately rejected rather than rounded: `1.5h` is
+// better written `90m`, and refusing it now leaves room to give multi-unit
+// strings like `1h30m` a meaning later without changing what anything already
+// in a config file means.
+const DURATION_PATTERN = /^(\d+)\s*(ms|s|m|h|d|w)$/i;
 
 /** Units accepted by {@link parseDuration}, for error messages and docs. */
 export const DURATION_UNITS = Object.keys(UNIT_MILLISECONDS);
@@ -54,21 +58,38 @@ export function isValidDuration(value: string): boolean {
   }
 }
 
-/** Render milliseconds using the largest unit that divides evenly. */
-export function formatDuration(milliseconds: number): string {
-  const units: Array<[string, number]> = [
-    ['w', UNIT_MILLISECONDS.w],
-    ['d', UNIT_MILLISECONDS.d],
-    ['h', UNIT_MILLISECONDS.h],
-    ['m', UNIT_MILLISECONDS.m],
-    ['s', UNIT_MILLISECONDS.s],
-  ];
+const FORMAT_UNITS: Array<[string, number]> = [
+  ['w', UNIT_MILLISECONDS.w],
+  ['d', UNIT_MILLISECONDS.d],
+  ['h', UNIT_MILLISECONDS.h],
+  ['m', UNIT_MILLISECONDS.m],
+  ['s', UNIT_MILLISECONDS.s],
+  ['ms', UNIT_MILLISECONDS.ms],
+];
 
-  for (const [suffix, size] of units) {
-    if (milliseconds >= size && milliseconds % size === 0) {
-      return `${milliseconds / size}${suffix}`;
-    }
+/**
+ * Render milliseconds for log output, e.g. `1h 15m`.
+ *
+ * At most the two largest non-zero units are shown: `1h 15m 3s 250ms` is noise
+ * in a log line, and the first two components already convey the magnitude.
+ * Negative and non-finite inputs render as `0ms` rather than something
+ * nonsensical, since this is only ever used for display.
+ */
+export function formatDuration(milliseconds: number): string {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return '0ms';
+
+  const parts: string[] = [];
+  let remaining = Math.round(milliseconds);
+
+  for (const [suffix, size] of FORMAT_UNITS) {
+    const amount = Math.floor(remaining / size);
+    if (amount === 0) continue;
+
+    parts.push(`${amount}${suffix}`);
+    remaining -= amount * size;
+
+    if (parts.length === 2 || remaining === 0) break;
   }
 
-  return `${milliseconds}ms`;
+  return parts.join(' ');
 }

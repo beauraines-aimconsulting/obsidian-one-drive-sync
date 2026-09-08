@@ -28,7 +28,8 @@ ENV NODE_ENV=production \
     RULES_CONFIG=/config/rules.json \
     ONEDRIVE_FOLDER=ObsidianPublished \
     LOG_LEVEL=info \
-    DEBOUNCE_DELAY=300
+    DEBOUNCE_DELAY=300 \
+    SYNC_SCHEDULE=
 
 RUN mkdir -p /home/node/.obsidian-sync /output \
     && chown -R node:node /home/node/.obsidian-sync /output
@@ -39,4 +40,6 @@ EXPOSE 8080
 
 USER node
 
+# Watch mode by default. Set SYNC_SCHEDULE (e.g. 1h) to add a periodic full
+# sync that reconciles anything the watcher missed; empty means no schedule.
 CMD ["node", "dist/main.js", "--sync", "--watch"]

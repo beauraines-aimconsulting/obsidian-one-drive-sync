@@ -13,8 +13,8 @@ describe('parseDuration', () => {
     expect(parseDuration(input)).toBe(expected);
   });
 
-  it('accepts fractional amounts', () => {
-    expect(parseDuration('1.5h')).toBe(5_400_000);
+  it.each([['1.5h'], ['0.5d'], ['1h30m']])('rejects %s so the syntax stays extensible', (input) => {
+    expect(() => parseDuration(input)).toThrow('Invalid duration');
   });
 
   it('accepts whitespace and mixed case', () => {
@@ -44,11 +44,13 @@ describe('isValidDuration', () => {
 describe('formatDuration', () => {
   it.each([
     [1_209_600_000, '2w'],
-    [2_592_000_000, '30d'],
+    [2_592_000_000, '4w 2d'],
     [43_200_000, '12h'],
-    [5_400_000, '90m'],
+    [5_400_000, '1h 30m'],
+    [4_500_000, '1h 15m'],
     [45_000, '45s'],
-    [1500, '1500ms'],
+    [1500, '1s 500ms'],
+    [500, '500ms'],
   ])('formats %s as %s', (input, expected) => {
     expect(formatDuration(input)).toBe(expected);
   });

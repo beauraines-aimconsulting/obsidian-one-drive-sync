@@ -287,9 +287,26 @@ Issue #66 is closed.
    - **#28 Advanced filtering and rule options** — ✅ complete, delivered as four stacked PRs
      (#83 shared glob matcher, #84 rules schema v2, #85 new and extended rule types,
      #86 `--explain` and documentation).
-   - **#27 Scheduled syncs** — in progress (#87 scheduler core, #88 CLI and contention,
-     #89 run history and health).
+   - **#27 Scheduled syncs** — ✅ complete, delivered as three stacked PRs (#87 scheduler core,
+     #88 CLI, config and contention gate, #89 run history, health status and container docs).
    - **#26 Web UI for managing rules** — largest; deferred until the above settle.
+
+**Decisions recorded for #27:**
+
+- Interval only, no cron. A cron expression needs a dependency and a timezone policy, and
+  "every N minutes" is what a reconciliation loop actually wants.
+- Watching and scheduling coexist through an explicit `SyncCoordinator` rather than locks
+  scattered through `SyncService`. File events raised during a full sync are deferred and
+  replayed once afterwards.
+- Ticks land on a fixed grid: the next timer is armed when a tick fires, not when the run
+  finishes, so a slow run cannot drift the schedule.
+- Health stays `200` while the process is alive; scheduled failures are reported in the body.
+  A repeatedly failing sync is usually an expired sign-in, which a restart cannot fix, so a
+  `503` would only cause a restart loop. `maxConsecutiveFailures` is the opt-in exit path.
+- Run history persists to `~/.obsidian-sync/schedule-history.json`, capped at 50 and written
+  atomically. Corrupt history degrades to empty and never blocks startup.
+- Notifications (email, webhook) are out of scope; the health body and run history are the
+  integration point.
 
 **Decisions recorded for #28:**
 
