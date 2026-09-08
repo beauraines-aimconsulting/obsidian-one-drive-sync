@@ -41,12 +41,14 @@
     "@azure/msal-node": "^5.5.0",
     "chokidar": "^3.5.3",
     "dotenv": "^16.3.1",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "picomatch": "^4.0.7"
   },
   "devDependencies": {
     "@eslint/js": "^8.54.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.10.0",
+    "@types/picomatch": "^4.0.3",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
     "@vitest/coverage-v8": "^1.0.4",
