@@ -11,6 +11,8 @@ describe('CLI main', () => {
       sync: false,
       forceSync: false,
       watch: false,
+      migrateRules: false,
+      yes: false,
       configPath: 'custom.json',
     });
   });
@@ -24,6 +26,8 @@ describe('CLI main', () => {
       sync: false,
       forceSync: false,
       watch: false,
+      migrateRules: false,
+      yes: false,
       configPath: undefined,
     });
   });
@@ -36,6 +40,17 @@ describe('CLI main', () => {
 
   it('rejects unknown options instead of ignoring them', () => {
     expect(() => parseArgs(['--nope'])).toThrow('Unknown option: --nope');
+  });
+
+  it('parses the rules migration flags', () => {
+    const options = parseArgs(['--migrate-rules', '--yes']);
+    expect(options.migrateRules).toBe(true);
+    expect(options.yes).toBe(true);
+  });
+
+  it('rejects migrating rules while syncing or watching', () => {
+    expect(() => parseArgs(['--migrate-rules', '--sync'])).toThrow('--migrate-rules');
+    expect(() => parseArgs(['--migrate-rules', '--watch'])).toThrow('--migrate-rules');
   });
 
   it('returns usage text', () => {

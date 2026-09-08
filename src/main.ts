@@ -13,7 +13,18 @@ import { HealthServer } from './health/HealthServer.js';
 import type { CliOptions } from './cli/types.js';
 
 export function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { dryRun: false, help: false, probe: false, logout: false, sync: false, forceSync: false, watch: false, configPath: undefined };
+  const options: CliOptions = {
+    dryRun: false,
+    help: false,
+    probe: false,
+    logout: false,
+    sync: false,
+    forceSync: false,
+    watch: false,
+    migrateRules: false,
+    yes: false,
+    configPath: undefined,
+  };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--help' || argv[i] === '-h') options.help = true;
     else if (argv[i] === '--dry-run') options.dryRun = true;
@@ -22,14 +33,30 @@ export function parseArgs(argv: string[]): CliOptions {
     else if (argv[i] === '--sync') options.sync = true;
     else if (argv[i] === '--force-sync') options.forceSync = true;
     else if (argv[i] === '--watch') options.watch = true;
+    else if (argv[i] === '--migrate-rules') options.migrateRules = true;
+    else if (argv[i] === '--yes' || argv[i] === '-y') options.yes = true;
     else if (argv[i] === '--config') options.configPath = argv[++i];
     else throw new Error(`Unknown option: ${argv[i]}`);
   }
+
+  // Migration rewrites the config file; running it alongside a sync or watch
+  // would change the rules underneath a run already in progress.
+  if (options.migrateRules) {
+    const conflicting = (['sync', 'watch', 'probe', 'logout', 'forceSync'] as const).filter(
+      (flag) => options[flag]
+    );
+    if (conflicting.length > 0) {
+      throw new Error(
+        '--migrate-rules cannot be combined with --sync, --watch, --probe, or --logout'
+      );
+    }
+  }
+
   return options;
 }
 
 export function usage(): string {
-  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
+  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only\n                   unless --yes is given)\n  --yes, -y        Confirm an action that otherwise only previews\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
 }
 
 async function runProbe(config: import('./config/types.js').AppConfig): Promise<number> {
@@ -169,6 +196,14 @@ async function main(): Promise<number> {
   if (configPath) process.env.RULES_CONFIG = configPath;
   const config = await new ConfigManager().load();
 
+  // Rules migration only touches the config file, so it runs before any of the
+  // vault or Graph setup below.
+  if (options.migrateRules) {
+    const { migrateRulesFile } = await import('./cli/migrateRules.js');
+    const target = configPath ?? path.resolve(config.rulesConfig);
+    return migrateRulesFile(target, { confirm: options.yes });
+  }
+
   // Graph API probe mode
   if (options.probe) {
     return runProbe(config);
@@ -184,7 +219,7 @@ async function main(): Promise<number> {
   }
 
   if (!fs.existsSync(config.vaultPath)) throw new Error(`Invalid vault path: ${config.vaultPath}`);
-  const publicationService = new PublicationService({ 
+  const publicationService = new PublicationService({
     logLevel: config.logLevel,
     vaultPath: config.vaultPath,
   });
@@ -229,7 +264,10 @@ async function main(): Promise<number> {
       }
       return;
     }
-    const result = await publicationService.evaluateFile(relativePath, fs.readFileSync(filepath, 'utf-8'));
+    const result = await publicationService.evaluateFile(
+      relativePath,
+      fs.readFileSync(filepath, 'utf-8')
+    );
     const icon = result.parseError ? '⚠️' : result.eligible ? '✅' : '⛔';
     console.log(`${icon} ${relativePath} - ${result.reason}`);
   };
@@ -293,11 +331,17 @@ async function main(): Promise<number> {
   console.log(`❤️  Health probe: http://localhost:${config.healthPort}/healthz`);
 
   return await new Promise<number>((resolve) => {
-    const shutdownHandler = createGracefulShutdown(watcher, pendingEvaluations, {
-      info: (message) => console.log(`\n${message}`),
-      error: (message) => console.error(message),
-    }, healthServer);
-    const shutdown = async (signal: string): Promise<void> => resolve(await shutdownHandler(signal));
+    const shutdownHandler = createGracefulShutdown(
+      watcher,
+      pendingEvaluations,
+      {
+        info: (message) => console.log(`\n${message}`),
+        error: (message) => console.error(message),
+      },
+      healthServer
+    );
+    const shutdown = async (signal: string): Promise<void> =>
+      resolve(await shutdownHandler(signal));
 
     process.once('SIGINT', () => void shutdown('SIGINT'));
     process.once('SIGTERM', () => void shutdown('SIGTERM'));
@@ -305,8 +349,10 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().then((code) => process.exit(code)).catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
 }

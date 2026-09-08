@@ -1,4 +1,4 @@
-import type { Rule, EngineResult, RuleEngineConfig } from './types.js';
+import type { Rule, EngineResult, RuleEngineConfig, RuleTrace } from './types.js';
 
 export class RuleEngine {
   private rules: Map<string, Rule>;
@@ -56,13 +56,8 @@ export class RuleEngine {
    * - AND: All rules must pass
    * - OR: At least one rule must pass
    */
-  evaluate(
-    filepath: string,
-    frontmatter: Record<string, unknown>,
-    content: string
-  ): EngineResult {
-    const appliedRules: { name: string; passed: boolean; reason: string }[] =
-      [];
+  evaluate(filepath: string, frontmatter: Record<string, unknown>, content: string): EngineResult {
+    const appliedRules: RuleTrace[] = [];
 
     if (this.rules.size === 0) {
       return {
@@ -79,6 +74,8 @@ export class RuleEngine {
         name,
         passed: result.passed,
         reason: result.reason,
+        // Composite rules report why each nested node decided as it did.
+        ...(result.children ? { children: result.children } : {}),
       });
     }
 
