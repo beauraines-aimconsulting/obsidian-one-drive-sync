@@ -1,0 +1,63 @@
+{
+  "config": {
+    "vaultPath": "~/Obsidian/Vault",
+    "oneDriveFolder": "ObsidianPublished",
+    "logLevel": "info",
+    "extraIgnorePatterns": ["**/*.bookmark.md"]
+  },
+  "rulesVersion": 2,
+  "rules": {
+    "definitions": {
+      "notPrivate": {
+        "type": "privacy",
+        "allowPrivate": false
+      },
+      "publishableArea": {
+        "type": "path",
+        "include": ["Projects/**", "Notes/**/*.md"],
+        "exclude": ["**/Drafts/**", "**/_archive/**"]
+      },
+      "sharedTag": {
+        "type": "tag",
+        "whitelist": ["share", "public", "project/*"],
+        "source": "both",
+        "requireAny": true
+      },
+      "isDraft": {
+        "type": "frontmatterField",
+        "conditions": [{ "field": "status", "op": "equals", "value": "draft" }]
+      },
+      "reviewedAndPublished": {
+        "type": "frontmatterField",
+        "mode": "all",
+        "conditions": [
+          { "field": "meta.status", "op": "equals", "value": "published" },
+          { "field": "meta.reviewed", "op": "gte", "value": "2024-01-01" }
+        ]
+      },
+      "noDraftBanner": {
+        "type": "content",
+        "excludePatterns": ["> \\[!warning\\] DRAFT"],
+        "regex": true
+      },
+      "reasonablySized": {
+        "type": "fileMeta",
+        "maxSize": 1048576,
+        "extensions": [".md"]
+      },
+      "publishable": {
+        "any": [{ "rule": "sharedTag" }, { "rule": "reviewedAndPublished" }]
+      }
+    },
+    "match": {
+      "all": [
+        { "rule": "notPrivate" },
+        { "rule": "publishableArea" },
+        { "rule": "reasonablySized" },
+        { "rule": "noDraftBanner" },
+        { "rule": "publishable" },
+        { "not": { "rule": "isDraft" } }
+      ]
+    }
+  }
+}
