@@ -1,18 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
 import { RuleLoader } from '../../src/rules/RuleLoader.js';
 import { migrateRulesDocument } from '../../src/rules/migrateRulesConfig.js';
 import type { RulesDocument } from '../../src/rules/configTypes.js';
 
 /**
- * The migration is only safe if it is decision-preserving. Rather than assert
- * on the migrated shape, this exercises the repository's own `config.json`
- * through both the v1 and the migrated v2 path and requires identical answers.
+ * The migration is only safe if it is decision-preserving. This representative
+ * v1 document exercises path and tag rules through both the v1 and migrated v2
+ * paths and requires identical answers.
  */
 describe('rules migration round-trip', () => {
-  const configPath = path.resolve(process.cwd(), 'config.json');
-  const original = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as RulesDocument;
+  const original: RulesDocument = {
+    config: {
+      vaultPath: '~/LocalDocs/Notes',
+      outputPath: '~/Documents/ObsidianKnowledge',
+      oneDriveFolder: 'ObsidianPublished',
+      extraIgnorePatterns: ['**/*.bookmark.md'],
+    },
+    rules: {
+      composition: 'OR',
+      pathRule: {
+        include: ['MSFT/**', 'AIM/**'],
+      },
+      tagRule: {
+        whitelist: ['ms-rte', 'sbux', 'aim'],
+        requireAny: true,
+      },
+    },
+  };
 
   const samples: Array<{
     name: string;
