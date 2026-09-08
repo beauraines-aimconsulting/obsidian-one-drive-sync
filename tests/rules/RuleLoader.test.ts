@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { attachTagSources } from '../../src/rules/tagSources.js';
 import { RuleLoader } from '../../src/rules/RuleLoader.js';
 
 describe('RuleLoader', () => {
@@ -259,5 +260,94 @@ describe('RuleLoader v2 documents', () => {
         },
       })
     ).toThrow(/bogus[\s\S]*whitlist|whitlist[\s\S]*bogus/);
+  });
+});
+
+describe('RuleLoader new rule types', () => {
+  const loader = (): RuleLoader => new RuleLoader('error');
+
+  it('builds a frontmatterField rule from config', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: {
+          reviewed: {
+            type: 'frontmatterField',
+            conditions: [
+              { field: 'meta.status', op: 'equals', value: 'final' },
+              { field: 'priority', op: 'gte', value: 3 },
+            ],
+          },
+        },
+        match: { rule: 'reviewed' },
+      },
+    });
+
+    expect(engine.evaluate('a.md', { meta: { status: 'final' }, priority: 5 }, '').eligible).toBe(
+      true
+    );
+    expect(engine.evaluate('a.md', { meta: { status: 'final' }, priority: 1 }, '').eligible).toBe(
+      false
+    );
+  });
+
+  it('builds a content rule from config', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: { body: { type: 'content', includePatterns: ['publish-me'] } },
+        match: { rule: 'body' },
+      },
+    });
+
+    expect(engine.evaluate('a.md', {}, 'please publish-me').eligible).toBe(true);
+    expect(engine.evaluate('a.md', {}, 'nothing here').eligible).toBe(false);
+  });
+
+  it('builds a fileMeta rule from config', () => {
+    const engine = loader().loadFromObject({
+      rulesVersion: 2,
+      rules: {
+        definitions: { meta: { type: 'fileMeta', extensions: ['md'] } },
+        match: { rule: 'meta' },
+      },
+    });
+
+    expect(engine.evaluate('a.md', {}, '').eligible).toBe(true);
+    expect(engine.evaluate('a.canvas', {}, '').eligible).toBe(false);
+  });
+
+  it('passes the tag source through to the tag rule', () => {
+    const document = (source: string) => ({
+      rulesVersion: 2,
+      rules: {
+        definitions: { tags: { type: 'tag', whitelist: ['waiting'], requireAny: true, source } },
+        match: { rule: 'tags' },
+      },
+    });
+
+    const frontmatter = attachTagSources(
+      { tags: ['waiting'] },
+      { frontmatter: [], inline: [], task: ['waiting'] }
+    );
+
+    expect(
+      loader().loadFromObject(document('both')).evaluate('a.md', frontmatter, '').eligible
+    ).toBe(false);
+    expect(
+      loader().loadFromObject(document('all')).evaluate('a.md', frontmatter, '').eligible
+    ).toBe(true);
+  });
+
+  it('reports a malformed duration as a config error', () => {
+    expect(() =>
+      loader().loadFromObject({
+        rulesVersion: 2,
+        rules: {
+          definitions: { meta: { type: 'fileMeta', modifiedWithin: 'soon' } },
+          match: { rule: 'meta' },
+        },
+      })
+    ).toThrow('rules.definitions.meta.modifiedWithin');
   });
 });

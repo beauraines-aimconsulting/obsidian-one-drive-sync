@@ -205,6 +205,9 @@ service.addRule(
 - `CategoryRule`: whitelist/blacklist by `category`
 - `TagRule`: whitelist/blacklist by `tags`
 - `PathRule`: include/exclude by glob path
+- `FrontmatterFieldRule`: match any frontmatter field with comparison operators
+- `ContentRule`: match the note body
+- `FileMetaRule`: filter by file size, modification time, or extension
 
 ### Rules configuration file
 
@@ -233,7 +236,8 @@ them with a nested `match` tree:
 }
 ```
 
-- `type` selects the rule: `path`, `tag`, `category`, `frontmatter`, `privacy`.
+- `type` selects the rule: `path`, `tag`, `category`, `frontmatter`,
+  `frontmatterField`, `privacy`, `content`, `fileMeta`.
 - `match` nodes are `{ "all": [...] }`, `{ "any": [...] }`, `{ "not": {...} }`, or
   `{ "rule": "name" }`, nestable to any depth. A definition may itself be a group,
   so a reusable sub-expression can be named once and referenced repeatedly.
@@ -242,6 +246,80 @@ them with a nested `match` tree:
   undefined rules, circular references, empty groups, and malformed globs are all
   rejected with the path of the offending value, and every problem is reported at
   once rather than one per run.
+
+#### Rule options
+
+| Type | Options |
+| --- | --- |
+| `path` | `include`, `exclude`, `caseInsensitive`, `vaultPath` |
+| `tag` | `whitelist`, `blacklist`, `requireAny`, `requireAll`, `source`, `matchNested`, `caseInsensitive` |
+| `category` | `whitelist`, `blacklist`, `fromPath`, `matchNested`, `caseInsensitive` |
+| `frontmatter` | *(none — passes when `publish: true`)* |
+| `frontmatterField` | `conditions`, `mode` |
+| `privacy` | `allowPrivate` |
+| `content` | `includePatterns`, `excludePatterns`, `mode`, `regex`, `caseInsensitive`, `maxBytes` |
+| `fileMeta` | `minSize`, `maxSize`, `modifiedWithin`, `modifiedBefore`, `extensions`, `vaultPath` |
+
+**`path`** — `include` and `exclude` are globs. `exclude` always beats `include`,
+so a note cannot be pulled back in by a broader include pattern. An `include`
+entry prefixed with `!` is a negation and behaves exactly like an `exclude`
+entry, so one ordered list can express "all of Work except its drafts":
+
+```jsonc
+{ "type": "path", "include": ["Work/**", "!Work/drafts/**"] }
+```
+
+**`tag`** — whitelist and blacklist entries may be plain tags or globs
+(`project/*`, `area/**`), and a leading `#` is accepted. `requireAny` passes
+when one listed tag is present; `requireAll` requires all of them; with neither,
+every tag on the note must be whitelisted. `matchNested` lets `project` match
+`project/alpha`. See *Tag sources* below for `source`.
+
+**`frontmatterField`** — the general-purpose matcher. Each condition names a
+field by dot path and applies an operator:
+
+```jsonc
+{
+  "type": "frontmatterField",
+  "mode": "all",                       // or "any"; default "all"
+  "conditions": [
+    { "field": "meta.review.status", "op": "equals", "value": "final" },
+    { "field": "created", "op": "gte", "value": "2026-01-01" },
+    { "field": "authors", "op": "contains", "value": "sam" }
+  ]
+}
+```
+
+Operators: `exists`, `notExists`, `truthy`, `equals`, `notEquals`, `in`,
+`notIn`, `contains`, `matches` (regex, over a string or any array member), and
+`gt` / `gte` / `lt` / `lte`. Comparisons understand numbers and `YYYY-MM-DD` or
+full ISO-8601 dates, and compare them as timestamps rather than lexically, so
+`"10"` is greater than `"9"`. A value of the wrong type fails the condition with
+a reason naming the mismatch; it never aborts the sync. `caseInsensitive` is
+available per condition.
+
+**`content`** — matches the note body, with frontmatter already stripped.
+Patterns are literal substrings unless `regex: true`. Regexes are not multiline,
+so `^` and `$` anchor to the whole note. Notes larger than `maxBytes` (default
+1 MiB) fail with an explicit reason instead of being scanned.
+
+**`fileMeta`** — `modifiedWithin: "30d"` accepts `ms`, `s`, `m`, `h`, `d`, and
+`w`. A file that cannot be read fails the rule rather than raising an error,
+since it may simply have been deleted mid-sync.
+
+#### Tag sources
+
+Obsidian tags reach a note three ways, and they do not all mean the same thing.
+A `#waiting` on `- [ ] call vendor #waiting` annotates that task; it is not a
+topic label for the note. `TagRule.source` selects which are considered:
+
+| `source` | Considers |
+| --- | --- |
+| `frontmatter` | the YAML `tags` field |
+| `inline` | `#tags` in the body, excluding task lines |
+| `task` | `#tags` on task/checkbox lines only |
+| `both` *(default)* | frontmatter + inline |
+| `all` | all three |
 
 **Version 1** is the original flat shape and still loads unchanged:
 
@@ -265,6 +343,19 @@ npm start -- --migrate-rules --yes    # writes it, backing up to config.json.v1.
 
 The file is replaced atomically, and sections the rule engine does not own — such
 as `config` — are carried across untouched.
+
+#### Behaviour changes in the tag rules
+
+Two changes affect notes that were previously eligible:
+
+- **Tags on task lines no longer count by default.** `TagRule.source` defaults
+  to `both`, which excludes them. A note that qualified only because of a tag on
+  a checkbox line is now ineligible. Set `"source": "all"` to restore the old
+  behaviour.
+- **Nested inline tags are now read in full.** `#project/alpha` is extracted as
+  `project/alpha` rather than `project`, matching how Obsidian treats it. A
+  whitelist entry of `project` therefore no longer matches it; use
+  `"matchNested": true`, or the glob `project/*`.
 
 ### Frontmatter example
 
