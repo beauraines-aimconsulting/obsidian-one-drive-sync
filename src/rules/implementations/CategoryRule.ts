@@ -5,6 +5,10 @@ import { compileGlobs, normalizeGlobPath } from '../../utils/glob.js';
 export interface CategoryRuleConfig {
   whitelist?: string[];
   blacklist?: string[];
+  /** @deprecated Use whitelist. */
+  allowList?: string[];
+  /** @deprecated Use blacklist. */
+  ignoreList?: string[];
   /**
    * When frontmatter declares no category, derive one from the first path
    * segment, so a vault organised by top-level folder needs no per-note field.
@@ -29,8 +33,8 @@ export class CategoryRule extends Rule {
 
   constructor(config?: CategoryRuleConfig) {
     super();
-    this.whitelist = config?.whitelist ?? [];
-    this.blacklist = config?.blacklist ?? [];
+    this.whitelist = config?.whitelist ?? config?.allowList ?? [];
+    this.blacklist = config?.blacklist ?? config?.ignoreList ?? [];
     this.fromPath = config?.fromPath ?? false;
     this.matchNested = config?.matchNested ?? false;
 

@@ -134,12 +134,24 @@ export interface RulesSectionV1 {
   tagRule?: {
     whitelist?: string[];
     blacklist?: string[];
+    /** @deprecated Use whitelist. */
+    allowList?: string[];
+    /** @deprecated Use blacklist. */
+    ignoreList?: string[];
     requireAny?: boolean;
     negate?: boolean;
   };
   frontmatterRule?: boolean;
   privacyRule?: { allowPrivate?: boolean; negate?: boolean };
-  categoryRule?: { whitelist?: string[]; blacklist?: string[]; negate?: boolean };
+  categoryRule?: {
+    whitelist?: string[];
+    blacklist?: string[];
+    /** @deprecated Use whitelist. */
+    allowList?: string[];
+    /** @deprecated Use blacklist. */
+    ignoreList?: string[];
+    negate?: boolean;
+  };
 }
 
 export interface RulesDocumentV1 {

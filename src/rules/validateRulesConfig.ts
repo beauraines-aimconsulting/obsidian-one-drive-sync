@@ -305,6 +305,8 @@ const rulesSectionV1Schema = z
       .object({
         whitelist: tagList.optional(),
         blacklist: tagList.optional(),
+        allowList: tagList.optional(),
+        ignoreList: tagList.optional(),
         requireAny: z.boolean().optional(),
         negate: z.boolean().optional(),
       })
@@ -319,6 +321,8 @@ const rulesSectionV1Schema = z
       .object({
         whitelist: tagList.optional(),
         blacklist: tagList.optional(),
+        allowList: tagList.optional(),
+        ignoreList: tagList.optional(),
         negate: z.boolean().optional(),
       })
       .strict()

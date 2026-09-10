@@ -11,6 +11,10 @@ import {
 export interface TagRuleConfig {
   whitelist?: string[];
   blacklist?: string[];
+  /** @deprecated Use whitelist. */
+  allowList?: string[];
+  /** @deprecated Use blacklist. */
+  ignoreList?: string[];
   /** Pass when at least one tag is whitelisted, rather than requiring all tags to be. */
   requireAny?: boolean;
   /** Require every whitelist entry to be present on the note. */
@@ -47,8 +51,8 @@ export class TagRule extends Rule {
 
   constructor(config?: TagRuleConfig) {
     super();
-    this.whitelist = (config?.whitelist ?? []).map(normalizeTag);
-    this.blacklist = (config?.blacklist ?? []).map(normalizeTag);
+    this.whitelist = (config?.whitelist ?? config?.allowList ?? []).map(normalizeTag);
+    this.blacklist = (config?.blacklist ?? config?.ignoreList ?? []).map(normalizeTag);
     this.requireAny = config?.requireAny ?? false;
     this.requireAll = config?.requireAll ?? false;
     this.source = config?.source ?? 'both';
