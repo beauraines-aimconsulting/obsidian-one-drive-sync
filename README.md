@@ -208,8 +208,8 @@ service.addRule(
 
 - `FrontmatterRule`: passes when `publish: true`
 - `PrivacyRule`: fails when `private: true` unless allowed
-- `CategoryRule`: whitelist/blacklist by `category`
-- `TagRule`: whitelist/blacklist by `tags`
+- `CategoryRule`: allowList/ignoreList by `category`
+- `TagRule`: allowList/ignoreList by `tags`
 - `PathRule`: include/exclude by glob path
 - `FrontmatterFieldRule`: match any frontmatter field with comparison operators
 - `ContentRule`: match the note body
@@ -231,7 +231,7 @@ them with a nested `match` tree:
   "rules": {
     "definitions": {
       "workPaths": { "type": "path", "include": ["MSFT/**", "AIM/**"] },
-      "publicTags": { "type": "tag", "whitelist": ["ms-rte"], "requireAny": true },
+      "publicTags": { "type": "tag", "allowList": ["ms-rte"], "requireAny": true },
       "notPrivate": { "type": "privacy", "allowPrivate": false }
     },
     "match": {
@@ -260,8 +260,8 @@ them with a nested `match` tree:
 | Type | Options |
 | --- | --- |
 | `path` | `include`, `exclude`, `caseInsensitive`, `vaultPath` |
-| `tag` | `whitelist`, `blacklist`, `requireAny`, `requireAll`, `source`, `matchNested`, `caseInsensitive` |
-| `category` | `whitelist`, `blacklist`, `fromPath`, `matchNested`, `caseInsensitive` |
+| `tag` | `allowList`, `ignoreList`, `requireAny`, `requireAll`, `source`, `matchNested`, `caseInsensitive` |
+| `category` | `allowList`, `ignoreList`, `fromPath`, `matchNested`, `caseInsensitive` |
 | `frontmatter` | *(none — passes when `publish: true`)* |
 | `frontmatterField` | `conditions`, `mode` |
 | `privacy` | `allowPrivate` |
@@ -277,10 +277,10 @@ entry, so one ordered list can express "all of Work except its drafts":
 { "type": "path", "include": ["Work/**", "!Work/drafts/**"] }
 ```
 
-**`tag`** — whitelist and blacklist entries may be plain tags or globs
+**`tag`** — allowList and ignoreList entries may be plain tags or globs
 (`project/*`, `area/**`), and a leading `#` is accepted. `requireAny` passes
 when one listed tag is present; `requireAll` requires all of them; with neither,
-every tag on the note must be whitelisted. `matchNested` lets `project` match
+every tag on the note must be allowListed. `matchNested` lets `project` match
 `project/alpha`. See *Tag sources* below for `source`.
 
 **`frontmatterField`** — the general-purpose matcher. Each condition names a
@@ -362,7 +362,7 @@ $ npm start -- --explain 'Projects/alpha.md'
    ├─ ✅ notPrivate (privacy) — Not marked as private
    ├─ ✅ publishableArea (path) — Path passed include/exclude checks
    ├─ ⛔ publishable
-   │  ├─ ⛔ sharedTag (tag) — None of the frontmatter and inline tags match whitelist: share
+   │  ├─ ⛔ sharedTag (tag) — None of the frontmatter and inline tags match allowList: share
    │  └─ ⛔ reviewedAndPublished (frontmatterField) — meta.status equals: undefined !== "published"
    └─ ⛔ not(isDraft)
       └─ ✅ isDraft (frontmatterField) — status equals: "draft" equals expected
@@ -386,7 +386,7 @@ instead, including the full nested trace, for piping into `jq`.
   "rules": {
     "composition": "OR",
     "pathRule": { "include": ["MSFT/**"] },
-    "tagRule": { "whitelist": ["ms-rte"], "requireAny": true }
+    "tagRule": { "allowList": ["ms-rte"], "requireAny": true }
   }
 }
 ```
@@ -412,7 +412,7 @@ Two changes affect notes that were previously eligible:
   behaviour.
 - **Nested inline tags are now read in full.** `#project/alpha` is extracted as
   `project/alpha` rather than `project`, matching how Obsidian treats it. A
-  whitelist entry of `project` therefore no longer matches it; use
+  allowList entry of `project` therefore no longer matches it; use
   `"matchNested": true`, or the glob `project/*`.
 
 ### Frontmatter example
@@ -495,7 +495,7 @@ new PathRule({
 
 ```ts
 new TagRule({
-  whitelist: ['copilot', 'important'],
+  allowList: ['copilot', 'important'],
   requireAny: true,
 });
 ```

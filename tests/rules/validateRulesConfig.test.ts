@@ -14,7 +14,7 @@ describe('validateRulesConfig', () => {
         rules: {
           composition: 'OR',
           pathRule: { include: ['MSFT/**'] },
-          tagRule: { whitelist: ['ms-rte'], requireAny: true },
+          tagRule: { allowList: ['ms-rte'], requireAny: true },
         },
       });
 
@@ -60,7 +60,7 @@ describe('validateRulesConfig', () => {
       rules: {
         definitions: {
           workPaths: { type: 'path', include: ['MSFT/**', 'AIM/**'] },
-          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+          publicTags: { type: 'tag', allowList: ['ms-rte'], requireAny: true },
         },
         match: {
           all: [
@@ -341,13 +341,13 @@ describe('validateRulesConfig new rule types', () => {
         {
           a: {
             type: 'tag',
-            whitelist: ['project/*'],
+            allowList: ['project/*'],
             requireAll: true,
             source: 'all',
             matchNested: true,
             caseInsensitive: true,
           },
-          b: { type: 'category', whitelist: ['Work'], fromPath: true, matchNested: true },
+          b: { type: 'category', allowList: ['Work'], fromPath: true, matchNested: true },
           c: { type: 'path', include: ['Work/**'], caseInsensitive: true },
         },
         { all: [{ rule: 'a' }, { rule: 'b' }, { rule: 'c' }] }

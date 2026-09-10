@@ -19,7 +19,7 @@
       },
       "sharedTag": {
         "type": "tag",
-        "whitelist": ["share", "public", "project/*"],
+        "allowList": ["share", "public", "project/*"],
         "source": "both",
         "requireAny": true
       },

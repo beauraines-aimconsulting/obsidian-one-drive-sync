@@ -38,7 +38,7 @@ describe('migrateRulesConfig', () => {
         rules: {
           composition: 'OR',
           pathRule: { include: ['a/**'] },
-          tagRule: { whitelist: ['x'] },
+          tagRule: { allowList: ['x'] },
         },
       });
 
@@ -56,11 +56,11 @@ describe('migrateRulesConfig', () => {
 
     it('carries each rule body into definitions with its type tag', () => {
       const migrated = migrateRulesDocument({
-        rules: { tagRule: { whitelist: ['ms-rte'], blacklist: ['private'], requireAny: true } },
+        rules: { tagRule: { allowList: ['ms-rte'], ignoreList: ['private'], requireAny: true } },
       });
 
       expect(migrated.rules?.definitions).toEqual({
-        TagRule: { type: 'tag', whitelist: ['ms-rte'], blacklist: ['private'], requireAny: true },
+        TagRule: { type: 'tag', allowList: ['ms-rte'], ignoreList: ['private'], requireAny: true },
       });
     });
 

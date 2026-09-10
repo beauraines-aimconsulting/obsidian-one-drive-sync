@@ -38,17 +38,7 @@ function buildDefinitions(rules: RulesSectionV1): Record<string, RuleDefinition>
     definitions[V1_DEFINITION_NAMES.pathRule] = { type: 'path', ...rules.pathRule };
   }
   if (rules.tagRule) {
-    const { allowList, ignoreList, ...tagRule } = rules.tagRule;
-    definitions[V1_DEFINITION_NAMES.tagRule] = {
-      type: 'tag',
-      ...tagRule,
-      ...(tagRule.whitelist === undefined && allowList !== undefined
-        ? { whitelist: allowList }
-        : {}),
-      ...(tagRule.blacklist === undefined && ignoreList !== undefined
-        ? { blacklist: ignoreList }
-        : {}),
-    };
+    definitions[V1_DEFINITION_NAMES.tagRule] = { type: 'tag', ...rules.tagRule };
   }
   if (rules.frontmatterRule) {
     definitions[V1_DEFINITION_NAMES.frontmatterRule] = { type: 'frontmatter' };
@@ -57,17 +47,7 @@ function buildDefinitions(rules: RulesSectionV1): Record<string, RuleDefinition>
     definitions[V1_DEFINITION_NAMES.privacyRule] = { type: 'privacy', ...rules.privacyRule };
   }
   if (rules.categoryRule) {
-    const { allowList, ignoreList, ...categoryRule } = rules.categoryRule;
-    definitions[V1_DEFINITION_NAMES.categoryRule] = {
-      type: 'category',
-      ...categoryRule,
-      ...(categoryRule.whitelist === undefined && allowList !== undefined
-        ? { whitelist: allowList }
-        : {}),
-      ...(categoryRule.blacklist === undefined && ignoreList !== undefined
-        ? { blacklist: ignoreList }
-        : {}),
-    };
+    definitions[V1_DEFINITION_NAMES.categoryRule] = { type: 'category', ...rules.categoryRule };
   }
 
   return definitions;

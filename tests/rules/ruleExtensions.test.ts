@@ -52,16 +52,16 @@ describe('TagRule tag sources', () => {
     new TagRule(config).evaluate('note.md', note).passed;
 
   it('considers frontmatter and inline tags by default', () => {
-    expect(passes({ whitelist: ['topic'], requireAny: true })).toBe(true);
-    expect(passes({ whitelist: ['inline-topic'], requireAny: true })).toBe(true);
+    expect(passes({ allowList: ['topic'], requireAny: true })).toBe(true);
+    expect(passes({ allowList: ['inline-topic'], requireAny: true })).toBe(true);
   });
 
   it('excludes task tags by default, since they annotate a task not the note', () => {
-    expect(passes({ whitelist: ['waiting'], requireAny: true })).toBe(false);
+    expect(passes({ allowList: ['waiting'], requireAny: true })).toBe(false);
   });
 
   it('opts task tags back in with source: all', () => {
-    expect(passes({ whitelist: ['waiting'], requireAny: true, source: 'all' })).toBe(true);
+    expect(passes({ allowList: ['waiting'], requireAny: true, source: 'all' })).toBe(true);
   });
 
   it.each([
@@ -72,18 +72,18 @@ describe('TagRule tag sources', () => {
     ['task', 'waiting', true],
     ['task', 'topic', false],
   ] as const)('source %s matching %s is %s', (source, tag, expected) => {
-    expect(passes({ whitelist: [tag], requireAny: true, source })).toBe(expected);
+    expect(passes({ allowList: [tag], requireAny: true, source })).toBe(expected);
   });
 
   it('names the source in the failure reason', () => {
-    const result = new TagRule({ whitelist: ['nope'], requireAny: true }).evaluate('note.md', note);
+    const result = new TagRule({ allowList: ['nope'], requireAny: true }).evaluate('note.md', note);
 
     expect(result.reason).toContain('frontmatter and inline tags');
   });
 
-  it('blacklists a task tag only when task tags are selected', () => {
-    expect(passes({ blacklist: ['waiting'] })).toBe(true);
-    expect(passes({ blacklist: ['waiting'], source: 'all' })).toBe(false);
+  it('ignoreLists a task tag only when task tags are selected', () => {
+    expect(passes({ ignoreList: ['waiting'] })).toBe(true);
+    expect(passes({ ignoreList: ['waiting'], source: 'all' })).toBe(false);
   });
 });
 
@@ -93,15 +93,15 @@ describe('TagRule matching options', () => {
     new TagRule(config).evaluate('note.md', noteWith(tags)).passed;
 
   describe('requireAll', () => {
-    it('requires every whitelist entry to be present', () => {
-      const config = { whitelist: ['alpha', 'beta'], requireAll: true };
+    it('requires every allowList entry to be present', () => {
+      const config = { allowList: ['alpha', 'beta'], requireAll: true };
 
       expect(passes(config, ['alpha', 'beta', 'gamma'])).toBe(true);
       expect(passes(config, ['alpha'])).toBe(false);
     });
 
     it('names the missing tags', () => {
-      const result = new TagRule({ whitelist: ['alpha', 'beta'], requireAll: true }).evaluate(
+      const result = new TagRule({ allowList: ['alpha', 'beta'], requireAll: true }).evaluate(
         'note.md',
         noteWith(['alpha'])
       );
@@ -111,7 +111,7 @@ describe('TagRule matching options', () => {
     });
 
     it('takes precedence over requireAny when both are set', () => {
-      expect(passes({ whitelist: ['a', 'b'], requireAll: true, requireAny: true }, ['a'])).toBe(
+      expect(passes({ allowList: ['a', 'b'], requireAll: true, requireAny: true }, ['a'])).toBe(
         false
       );
     });
@@ -119,52 +119,52 @@ describe('TagRule matching options', () => {
 
   describe('globs', () => {
     it('matches tag patterns', () => {
-      expect(passes({ whitelist: ['project/*'], requireAny: true }, ['project/alpha'])).toBe(true);
-      expect(passes({ whitelist: ['project/*'], requireAny: true }, ['other/alpha'])).toBe(false);
+      expect(passes({ allowList: ['project/*'], requireAny: true }, ['project/alpha'])).toBe(true);
+      expect(passes({ allowList: ['project/*'], requireAny: true }, ['other/alpha'])).toBe(false);
     });
 
     it('matches deep patterns with a globstar', () => {
-      expect(passes({ whitelist: ['area/**'], requireAny: true }, ['area/work/admin'])).toBe(true);
+      expect(passes({ allowList: ['area/**'], requireAny: true }, ['area/work/admin'])).toBe(true);
     });
 
     it('accepts a leading # in config, as tags are written in notes', () => {
-      expect(passes({ whitelist: ['#alpha'], requireAny: true }, ['alpha'])).toBe(true);
-      expect(passes({ whitelist: ['alpha'], requireAny: true }, ['#alpha'])).toBe(true);
+      expect(passes({ allowList: ['#alpha'], requireAny: true }, ['alpha'])).toBe(true);
+      expect(passes({ allowList: ['alpha'], requireAny: true }, ['#alpha'])).toBe(true);
     });
   });
 
   describe('matchNested', () => {
     it('does not match children by default', () => {
-      expect(passes({ whitelist: ['project'], requireAny: true }, ['project/alpha'])).toBe(false);
+      expect(passes({ allowList: ['project'], requireAny: true }, ['project/alpha'])).toBe(false);
     });
 
     it('matches children when enabled', () => {
       expect(
-        passes({ whitelist: ['project'], requireAny: true, matchNested: true }, ['project/alpha'])
+        passes({ allowList: ['project'], requireAny: true, matchNested: true }, ['project/alpha'])
       ).toBe(true);
     });
 
     it('still matches the parent tag itself', () => {
       expect(
-        passes({ whitelist: ['project'], requireAny: true, matchNested: true }, ['project'])
+        passes({ allowList: ['project'], requireAny: true, matchNested: true }, ['project'])
       ).toBe(true);
     });
 
     it('does not match an unrelated tag with the same prefix', () => {
       expect(
-        passes({ whitelist: ['project'], requireAny: true, matchNested: true }, ['projects'])
+        passes({ allowList: ['project'], requireAny: true, matchNested: true }, ['projects'])
       ).toBe(false);
     });
   });
 
   describe('caseInsensitive', () => {
     it('is case sensitive by default', () => {
-      expect(passes({ whitelist: ['Alpha'], requireAny: true }, ['alpha'])).toBe(false);
+      expect(passes({ allowList: ['Alpha'], requireAny: true }, ['alpha'])).toBe(false);
     });
 
     it('ignores case when enabled', () => {
       expect(
-        passes({ whitelist: ['Alpha'], requireAny: true, caseInsensitive: true }, ['alpha'])
+        passes({ allowList: ['Alpha'], requireAny: true, caseInsensitive: true }, ['alpha'])
       ).toBe(true);
     });
   });
@@ -173,14 +173,14 @@ describe('TagRule matching options', () => {
 describe('CategoryRule extensions', () => {
   describe('fromPath', () => {
     it('derives a category from the first path segment when frontmatter has none', () => {
-      const rule = new CategoryRule({ whitelist: ['Work'], fromPath: true });
+      const rule = new CategoryRule({ allowList: ['Work'], fromPath: true });
 
       expect(rule.evaluate('Work/notes/plan.md', {}).passed).toBe(true);
       expect(rule.evaluate('Personal/journal.md', {}).passed).toBe(false);
     });
 
     it('prefers a declared category over the path', () => {
-      const rule = new CategoryRule({ whitelist: ['Work'], fromPath: true });
+      const rule = new CategoryRule({ allowList: ['Work'], fromPath: true });
 
       expect(rule.evaluate('Personal/journal.md', { category: 'Work' }).passed).toBe(true);
       expect(rule.evaluate('Work/plan.md', { category: 'Personal' }).passed).toBe(false);
@@ -188,12 +188,12 @@ describe('CategoryRule extensions', () => {
 
     it('has no category for a root-level note', () => {
       expect(
-        new CategoryRule({ whitelist: ['Work'], fromPath: true }).evaluate('inbox.md', {}).passed
+        new CategoryRule({ allowList: ['Work'], fromPath: true }).evaluate('inbox.md', {}).passed
       ).toBe(false);
     });
 
     it('is off by default', () => {
-      expect(new CategoryRule({ whitelist: ['Work'] }).evaluate('Work/plan.md', {}).passed).toBe(
+      expect(new CategoryRule({ allowList: ['Work'] }).evaluate('Work/plan.md', {}).passed).toBe(
         false
       );
     });
@@ -202,14 +202,14 @@ describe('CategoryRule extensions', () => {
   describe('matchNested', () => {
     it('does not match a child category by default', () => {
       expect(
-        new CategoryRule({ whitelist: ['Work'] }).evaluate('a.md', { category: 'Work/Clients' })
+        new CategoryRule({ allowList: ['Work'] }).evaluate('a.md', { category: 'Work/Clients' })
           .passed
       ).toBe(false);
     });
 
     it('matches a child category when enabled', () => {
       expect(
-        new CategoryRule({ whitelist: ['Work'], matchNested: true }).evaluate('a.md', {
+        new CategoryRule({ allowList: ['Work'], matchNested: true }).evaluate('a.md', {
           category: 'Work/Clients',
         }).passed
       ).toBe(true);
@@ -218,14 +218,14 @@ describe('CategoryRule extensions', () => {
 
   it('supports caseInsensitive matching', () => {
     expect(
-      new CategoryRule({ whitelist: ['work'], caseInsensitive: true }).evaluate('a.md', {
+      new CategoryRule({ allowList: ['work'], caseInsensitive: true }).evaluate('a.md', {
         category: 'Work',
       }).passed
     ).toBe(true);
   });
 
-  it('reports the blacklisted category that matched', () => {
-    const result = new CategoryRule({ blacklist: ['Private*'] }).evaluate('a.md', {
+  it('reports the ignoreListed category that matched', () => {
+    const result = new CategoryRule({ ignoreList: ['Private*'] }).evaluate('a.md', {
       category: ['Work', 'PrivateNotes'],
     });
 

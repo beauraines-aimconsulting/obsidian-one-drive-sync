@@ -11,7 +11,7 @@ const RULES = {
   rulesVersion: 2,
   rules: {
     definitions: {
-      shared: { type: 'tag', whitelist: ['share'], requireAny: true },
+      shared: { type: 'tag', allowList: ['share'], requireAny: true },
       notPrivate: { type: 'privacy', allowPrivate: false },
     },
     match: { all: [{ rule: 'notPrivate' }, { rule: 'shared' }] },
@@ -124,7 +124,7 @@ describe('explainFile', () => {
         rulesVersion: 2,
         rules: {
           definitions: {
-            shared: { type: 'tag', whitelist: ['share'], requireAny: true },
+            shared: { type: 'tag', allowList: ['share'], requireAny: true },
             notPrivate: { type: 'privacy', allowPrivate: false },
             group: { any: [{ rule: 'shared' }, { rule: 'notPrivate' }] },
           },

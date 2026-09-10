@@ -5,7 +5,7 @@ import path from 'node:path';
 import { PublicationService } from '../../src/publications/PublicationService.js';
 import type { EligibilityResult } from '../../src/publications/types.js';
 import { Rule } from '../../src/rules/types.js';
-import { TagRule as WhitelistTagRule } from '../../src/rules/implementations/TagRule.js';
+import { TagRule as AllowListTagRule } from '../../src/rules/implementations/TagRule.js';
 
 // Mock Rule implementation for testing
 class MockPassRule extends Rule {
@@ -490,7 +490,7 @@ private: true
     it('should re-evaluate when file content changes', async () => {
       service.addRule(
         'tags',
-        new WhitelistTagRule({ whitelist: ['published'], requireAny: true })
+        new AllowListTagRule({ allowList: ['published'], requireAny: true })
       );
 
       const filepath = '/test/file.md';

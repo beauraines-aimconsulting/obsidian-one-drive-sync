@@ -3,11 +3,7 @@ import type { Frontmatter, EvaluationResult } from '../Rule.js';
 import { compileGlobs, normalizeGlobPath } from '../../utils/glob.js';
 
 export interface CategoryRuleConfig {
-  whitelist?: string[];
-  blacklist?: string[];
-  /** @deprecated Use whitelist. */
   allowList?: string[];
-  /** @deprecated Use blacklist. */
   ignoreList?: string[];
   /**
    * When frontmatter declares no category, derive one from the first path
@@ -20,27 +16,27 @@ export interface CategoryRuleConfig {
 }
 
 /**
- * Checks if the file's category matches whitelist or blacklist rules.
+ * Checks if the file's category matches allowList or ignoreList rules.
  */
 export class CategoryRule extends Rule {
   name = 'CategoryRule';
-  private readonly whitelist: string[];
-  private readonly blacklist: string[];
-  private readonly matchesWhitelist: (value: string) => boolean;
-  private readonly matchesBlacklist: (value: string) => boolean;
+  private readonly allowList: string[];
+  private readonly ignoreList: string[];
+  private readonly matchesAllowList: (value: string) => boolean;
+  private readonly matchesIgnoreList: (value: string) => boolean;
   private readonly fromPath: boolean;
   private readonly matchNested: boolean;
 
   constructor(config?: CategoryRuleConfig) {
     super();
-    this.whitelist = config?.whitelist ?? config?.allowList ?? [];
-    this.blacklist = config?.blacklist ?? config?.ignoreList ?? [];
+    this.allowList = config?.allowList ?? [];
+    this.ignoreList = config?.ignoreList ?? [];
     this.fromPath = config?.fromPath ?? false;
     this.matchNested = config?.matchNested ?? false;
 
     const options = { caseInsensitive: config?.caseInsensitive ?? false, dot: true };
-    this.matchesWhitelist = compileGlobs(this.expand(this.whitelist), options);
-    this.matchesBlacklist = compileGlobs(this.expand(this.blacklist), options);
+    this.matchesAllowList = compileGlobs(this.expand(this.allowList), options);
+    this.matchesIgnoreList = compileGlobs(this.expand(this.ignoreList), options);
   }
 
   /** Nested matching is an extra glob, so both forms go through one matcher. */
@@ -71,24 +67,24 @@ export class CategoryRule extends Rule {
   evaluate(filepath: string, frontmatter: Frontmatter): EvaluationResult {
     const categories = this.getCategories(frontmatter, filepath);
 
-    // If whitelist is configured, check if any category is in the whitelist
-    if (this.whitelist.length > 0) {
-      const hasWhitelisted = categories.some((cat) => this.matchesWhitelist(cat));
-      if (!hasWhitelisted) {
+    // If allowList is configured, check if any category is in the allowList
+    if (this.allowList.length > 0) {
+      const hasAllowListed = categories.some((cat) => this.matchesAllowList(cat));
+      if (!hasAllowListed) {
         return {
           passed: false,
-          reason: `Category not in whitelist: ${this.whitelist.join(', ')}`,
+          reason: `Category not in allowList: ${this.allowList.join(', ')}`,
         };
       }
     }
 
-    // Check if any category is blacklisted
-    if (this.blacklist.length > 0) {
-      const blacklisted = categories.filter((cat) => this.matchesBlacklist(cat));
-      if (blacklisted.length > 0) {
+    // Check if any category is ignoreListed
+    if (this.ignoreList.length > 0) {
+      const ignoreListed = categories.filter((cat) => this.matchesIgnoreList(cat));
+      if (ignoreListed.length > 0) {
         return {
           passed: false,
-          reason: `Category is blacklisted: ${blacklisted.join(', ')}`,
+          reason: `Category is ignoreListed: ${ignoreListed.join(', ')}`,
         };
       }
     }

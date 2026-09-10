@@ -174,8 +174,8 @@ export class RuleLoader {
         });
       case 'tag':
         return new TagRule({
-          whitelist: definition.whitelist,
-          blacklist: definition.blacklist,
+          allowList: definition.allowList,
+          ignoreList: definition.ignoreList,
           requireAny: definition.requireAny,
           requireAll: definition.requireAll,
           source: definition.source,
@@ -184,8 +184,8 @@ export class RuleLoader {
         });
       case 'category':
         return new CategoryRule({
-          whitelist: definition.whitelist,
-          blacklist: definition.blacklist,
+          allowList: definition.allowList,
+          ignoreList: definition.ignoreList,
           fromPath: definition.fromPath,
           matchNested: definition.matchNested,
           caseInsensitive: definition.caseInsensitive,
