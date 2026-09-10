@@ -1,3 +1,17 @@
+/** Where an inline tag was found. */
+export type InlineTagSource = 'inline' | 'task';
+
+export interface SourcedTag {
+  tag: string;
+  source: InlineTagSource;
+}
+
+/**
+ * Matches a markdown task line: `- [ ]`, `* [x]`, `+ [/]`, and Obsidian's
+ * custom checkbox statuses, at any indentation.
+ */
+const TASK_LINE_PATTERN = /^\s*[-*+]\s+\[[^\]]?\]\s/;
+
 /**
  * Extracts Obsidian inline tags (#tagname) from markdown content.
  * Ignores markdown link anchors ([text](#anchor)), wikilink bookmarks ([[File#bookmark]]), and code blocks.
@@ -8,30 +22,50 @@ export class InlineTagParser {
    * Regex matches #tagname but excludes markdown link anchors and wikilink bookmarks.
    */
   extractTags(content: string): string[] {
-    const tags: Set<string> = new Set();
+    return Array.from(
+      new Set(this.extractTagsWithSource(content).map((entry) => entry.tag))
+    ).sort();
+  }
 
-    // Remove wikilinks to avoid extracting tags from bookmarks like [[File#bookmark]]
-    let cleanContent = this.removeWikilinks(content);
+  /**
+   * Extract inline tags along with where each one was written.
+   *
+   * A tag on a task line (`- [ ] call vendor #waiting`) annotates that task
+   * rather than labelling the note, so rules need to be able to tell the two
+   * apart. A tag appearing in both positions is reported once per source.
+   */
+  extractTagsWithSource(content: string): SourcedTag[] {
+    // Cleaning is done per line so that a tag's line number — and therefore
+    // whether it sits on a task — survives the removals. Fenced code blocks
+    // still have to be stripped up front, since they span lines.
+    const lines = this.blankCodeBlocks(content).split('\n');
+    const seen = new Set<string>();
+    const results: SourcedTag[] = [];
 
-    // Remove markdown links to avoid extracting tags from anchors like [text](#anchor)
-    cleanContent = this.removeMarkdownLinks(cleanContent);
+    for (const line of lines) {
+      const source: InlineTagSource = TASK_LINE_PATTERN.test(line) ? 'task' : 'inline';
 
-    // Remove code blocks to avoid extracting tags from code
-    cleanContent = this.removeCodeBlocks(cleanContent);
+      let cleanLine = this.removeWikilinks(line);
+      cleanLine = this.removeMarkdownLinks(cleanLine);
+      cleanLine = this.removeInlineCode(cleanLine);
 
-    // Regex: Match #tagname
-    // \B ensures # is not at a word boundary (i.e., preceded by non-word char or at start)
-    const tagRegex = /\B#([a-zA-Z0-9_-]+)/g;
+      // \B ensures # is not at a word boundary (i.e., preceded by non-word char or at start)
+      const tagRegex = /\B#([a-zA-Z0-9_/-]+)/g;
 
-    let match;
-    while ((match = tagRegex.exec(cleanContent)) !== null) {
-      const tag = match[1];
-      if (tag) {
-        tags.add(tag);
+      let match;
+      while ((match = tagRegex.exec(cleanLine)) !== null) {
+        const tag = match[1];
+        if (!tag) continue;
+
+        const key = `${source}:${tag}`;
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        results.push({ tag, source });
       }
     }
 
-    return Array.from(tags).sort();
+    return results;
   }
 
   /**
@@ -39,13 +73,20 @@ export class InlineTagParser {
    * This prevents extracting tags from code examples.
    */
   private removeCodeBlocks(content: string): string {
-    // Remove triple backtick code blocks
-    let cleaned = content.replace(/```[\s\S]*?```/g, '');
+    return this.removeInlineCode(this.blankCodeBlocks(content));
+  }
 
-    // Remove inline code (backticks)
-    cleaned = cleaned.replace(/`[^`]*`/g, '');
+  /**
+   * Replace fenced code blocks with the same number of blank lines, so that
+   * line-based scanning keeps its alignment with the original document.
+   */
+  private blankCodeBlocks(content: string): string {
+    return content.replace(/```[\s\S]*?```/g, (block) => '\n'.repeat(block.split('\n').length - 1));
+  }
 
-    return cleaned;
+  /** Remove inline code spans (backticks) so tags inside them are not matched. */
+  private removeInlineCode(content: string): string {
+    return content.replace(/`[^`]*`/g, '');
   }
 
   /**

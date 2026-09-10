@@ -128,6 +128,36 @@ describe('Publication Rules', () => {
   });
 
   describe('PathRule', () => {
+    it('should support brace alternation in include patterns', () => {
+      const rule = new PathRule({ include: ['{MSFT,AIM}/**'] });
+
+      expect(rule.evaluate('MSFT/notes.md', {}, '').passed).toBe(true);
+      expect(rule.evaluate('AIM/notes.md', {}, '').passed).toBe(true);
+      expect(rule.evaluate('Personal/notes.md', {}, '').passed).toBe(false);
+    });
+
+    it('should support character classes in exclude patterns', () => {
+      const rule = new PathRule({ exclude: ['archive/20[0-9][0-9]/**'] });
+
+      expect(rule.evaluate('archive/2024/notes.md', {}, '').passed).toBe(false);
+      expect(rule.evaluate('archive/current/notes.md', {}, '').passed).toBe(true);
+    });
+
+    it('should treat a leading globstar as optional, matching vault-root files', () => {
+      const rule = new PathRule({ exclude: ['**/*.bookmark.md'] });
+
+      expect(rule.evaluate('Some Page.bookmark.md', {}, '').passed).toBe(false);
+      expect(rule.evaluate('AIM/Some Page.bookmark.md', {}, '').passed).toBe(false);
+      expect(rule.evaluate('AIM/bookmark.md', {}, '').passed).toBe(true);
+    });
+
+    it('should let exclude beat include when both match', () => {
+      const rule = new PathRule({ include: ['work/**'], exclude: ['work/private/**'] });
+
+      expect(rule.evaluate('work/notes.md', {}, '').passed).toBe(true);
+      expect(rule.evaluate('work/private/notes.md', {}, '').passed).toBe(false);
+    });
+
     it('should pass when path matches include pattern', () => {
       const rule = new PathRule({
         include: ['work/**', 'projects/**'],

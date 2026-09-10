@@ -11,6 +11,10 @@ export interface StoppableHealthServer {
   stop(): Promise<void>;
 }
 
+export interface StoppableScheduler {
+  stop(): Promise<void>;
+}
+
 /**
  * Creates an idempotent shutdown handler that stops incoming file events and
  * waits for evaluations already in progress before allowing the process to exit.
@@ -19,7 +23,8 @@ export function createGracefulShutdown(
   watcher: StoppableWatcher,
   pendingEvaluations: Set<Promise<void>>,
   logger: ShutdownLogger,
-  healthServer?: StoppableHealthServer
+  healthServer?: StoppableHealthServer,
+  scheduler?: StoppableScheduler
 ): (signal: string) => Promise<number> {
   let shutdownPromise: Promise<number> | undefined;
 
@@ -30,6 +35,9 @@ export function createGracefulShutdown(
       logger.info(`Shutting down on ${signal}`);
 
       try {
+        // The scheduler goes first: stopping it cancels and drains the
+        // in-flight full sync, and nothing else may run while that finishes.
+        if (scheduler) await scheduler.stop();
         await healthServer?.stop();
         await watcher.unwatch();
         await Promise.allSettled(pendingEvaluations);

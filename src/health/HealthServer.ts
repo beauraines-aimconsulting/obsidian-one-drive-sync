@@ -1,9 +1,28 @@
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
+import type { ScheduleStatus } from '../schedule/types.js';
 
 export interface HealthStatus {
   watcherActive: boolean;
   lastFileProcessedAt: string | null;
+  /** Present only when a schedule is configured. */
+  schedule?: ScheduleStatus;
+}
+
+/**
+ * Liveness means "this process is still doing the job it was started for".
+ *
+ * In schedule-only mode there is no watcher, so watching cannot be the only
+ * signal — that would report 503 forever.
+ *
+ * Deliberately *not* included: scheduled run failures. The likeliest cause of
+ * repeated failures is an expired refresh token, and restarting a container
+ * cannot fix something that needs an interactive sign-in; a 503 would only
+ * produce a restart loop. Failures are reported in the body, and
+ * `maxConsecutiveFailures` remains the only path to exiting.
+ */
+export function isLive(status: HealthStatus): boolean {
+  return status.watcherActive || status.schedule?.enabled === true;
 }
 
 export type HealthStatusProvider = () => HealthStatus;
@@ -26,10 +45,11 @@ export class HealthServer {
       }
 
       const status = this.status();
-      response.writeHead(status.watcherActive ? 200 : 503, {
+      const live = isLive(status);
+      response.writeHead(live ? 200 : 503, {
         'Content-Type': 'application/json',
       });
-      response.end(JSON.stringify({ status: status.watcherActive ? 'ok' : 'unhealthy', ...status }));
+      response.end(JSON.stringify({ status: live ? 'ok' : 'unhealthy', ...status }));
     });
 
     await new Promise<void>((resolve, reject) => {

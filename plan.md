@@ -284,9 +284,39 @@ Issue #66 is closed.
 **Remaining work, in suggested order:**
 
 1. **Phase 4 epic (#25):**
-   - **#27 Scheduled syncs** — smallest of the three and a natural follow-on to `--watch`.
-   - **#28 Advanced filtering and rule options** — builds on the existing rules engine.
-   - **#26 Web UI for managing rules** — largest; best deferred until the above settle.
+   - **#28 Advanced filtering and rule options** — ✅ complete, delivered as four stacked PRs
+     (#83 shared glob matcher, #84 rules schema v2, #85 new and extended rule types,
+     #86 `--explain` and documentation).
+   - **#27 Scheduled syncs** — ✅ complete, delivered as three stacked PRs (#87 scheduler core,
+     #88 CLI, config and contention gate, #89 run history, health status and container docs).
+   - **#26 Web UI for managing rules** — largest; deferred until the above settle.
+
+**Decisions recorded for #27:**
+
+- Interval only, no cron. A cron expression needs a dependency and a timezone policy, and
+  "every N minutes" is what a reconciliation loop actually wants.
+- Watching and scheduling coexist through an explicit `SyncCoordinator` rather than locks
+  scattered through `SyncService`. File events raised during a full sync are deferred and
+  replayed once afterwards.
+- Ticks land on a fixed grid: the next timer is armed when a tick fires, not when the run
+  finishes, so a slow run cannot drift the schedule.
+- Health stays `200` while the process is alive; scheduled failures are reported in the body.
+  A repeatedly failing sync is usually an expired sign-in, which a restart cannot fix, so a
+  `503` would only cause a restart loop. `maxConsecutiveFailures` is the opt-in exit path.
+- Run history persists to `~/.obsidian-sync/schedule-history.json`, capped at 50 and written
+  atomically. Corrupt history degrades to empty and never blocks startup.
+- Notifications (email, webhook) are out of scope; the health body and run history are the
+  integration point.
+
+**Decisions recorded for #28:**
+
+- `picomatch` is the single glob implementation; every rule and `ignorePatterns` share it.
+- `zod` validates the rules document, reporting every problem at once with a config path.
+- Schema evolution goes through an explicit `rulesVersion` field rather than shape sniffing.
+  Version 1 documents keep working, migrated in memory on load; `--migrate-rules` persists
+  the rewrite.
+- Tags are differentiated by where they were written. Task-line tags no longer count toward
+  `TagRule` by default, and nested inline tags (`#project/alpha`) are extracted in full.
 
 **Current repository state:** `main` is up to date with merged PRs through #82, and no PRs are
 open. The suite runs 437 tests across 24 files; build, tests, and lint are green. Phase 4 (#25)
@@ -351,6 +381,6 @@ system adds state to manage without a matching benefit. No git integration code 
   considered and dropped.
 - Phase 3 added: containerization with a volume-mounted vault, health endpoint, and CI image
   builds.
-- Phase 4 could add: web UI for managing rules, scheduled syncs, more advanced filtering
+- Phase 4 adds: advanced filtering (done), scheduled syncs, and a web UI for managing rules
 - All code should be modular to support future extensibility
 - **Human review is required for all PRs** - no automatic merges

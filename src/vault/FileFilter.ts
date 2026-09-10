@@ -1,33 +1,10 @@
 import * as path from 'path';
+import { compileGlob, normalizeGlobPath, type GlobMatcher } from '../utils/glob.js';
 import type { FilterOptions, FileFilterResult } from './types.js';
 
-/**
- * Converts a glob pattern to a regex pattern for matching file paths.
- * Supports: *, **, ?, [abc], etc.
- */
-function globToRegex(glob: string): RegExp {
-  // A leading `**/` should also match paths with no directory prefix, so
-  // `**/*.bookmark.md` matches vault-root files as well as nested ones.
-  const leadingGlobstar = glob.startsWith('**/');
-  const rest = leadingGlobstar ? glob.slice(3) : glob;
-
-  // Handle ** first - it should match everything including /
-  let regex = rest.replace(/\*\*/g, '___DOUBLE_STAR___');
-
-  // Escape special regex characters except glob patterns
-  regex = regex
-    .replace(/[.+^${}()|[\]\\*?]/g, '\\$&') // Escape regex special chars
-    .replace(/\\\*/g, '[^/]*') // * -> [^/]* (match anything except /)
-    .replace(/\\\?/g, '[^/]'); // ? -> [^/] (match any char except /)
-
-  // Handle ** - it should match everything including /
-  regex = regex.replace(/___DOUBLE_STAR___/g, '.*');
-
-  return new RegExp(`^${leadingGlobstar ? '(?:.*/)?' : ''}${regex}$`);
-}
-
 export class FileFilter {
-  private ignorePatterns: RegExp[] = [];
+  /** Original pattern strings kept alongside their matchers so callers can read them back. */
+  private ignorePatterns: Array<{ pattern: string; matches: GlobMatcher }> = [];
   private allowedExtensions: string[] = ['.md'];
 
   constructor(options?: Partial<FilterOptions>) {
@@ -41,17 +18,20 @@ export class FileFilter {
 
   /**
    * Set ignore patterns as glob strings.
-   * Patterns are converted to regex for efficient matching.
+   * Patterns are compiled once and reused for every subsequent match.
    */
   setIgnorePatterns(patterns: string[]): void {
-    this.ignorePatterns = patterns.map((pattern) => globToRegex(pattern));
+    this.ignorePatterns = patterns.map((pattern) => ({
+      pattern,
+      matches: compileGlob(pattern),
+    }));
   }
 
   /**
    * Add a single ignore pattern.
    */
   addIgnorePattern(pattern: string): void {
-    this.ignorePatterns.push(globToRegex(pattern));
+    this.ignorePatterns.push({ pattern, matches: compileGlob(pattern) });
   }
 
   /**
@@ -65,7 +45,7 @@ export class FileFilter {
    * Check if a file path matches any ignore pattern.
    */
   private matchesIgnorePattern(filepath: string): boolean {
-    return this.ignorePatterns.some((regex) => regex.test(filepath));
+    return this.ignorePatterns.some((entry) => entry.matches(filepath));
   }
 
   /**
@@ -73,7 +53,7 @@ export class FileFilter {
    * extension check. Used to prune directories while walking a vault.
    */
   isIgnored(filepath: string): boolean {
-    const normalizedPath = filepath.replace(/\\/g, '/');
+    const normalizedPath = normalizeGlobPath(filepath);
     if (this.matchesIgnorePattern(normalizedPath)) return true;
     // A directory is ignored when a pattern targets its contents (e.g. `.git/**`).
     return this.matchesIgnorePattern(`${normalizedPath}/`);
@@ -92,7 +72,7 @@ export class FileFilter {
    */
   filter(filepath: string): FileFilterResult {
     // Normalize path separators
-    const normalizedPath = filepath.replace(/\\/g, '/');
+    const normalizedPath = normalizeGlobPath(filepath);
 
     // Check ignore patterns first
     if (this.matchesIgnorePattern(normalizedPath)) {
@@ -126,7 +106,7 @@ export class FileFilter {
    * Get the current ignore patterns.
    */
   getIgnorePatterns(): string[] {
-    return this.ignorePatterns.map((regex) => regex.source);
+    return this.ignorePatterns.map((entry) => entry.pattern);
   }
 
   /**

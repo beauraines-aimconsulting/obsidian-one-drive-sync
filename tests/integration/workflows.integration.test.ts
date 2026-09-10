@@ -157,6 +157,84 @@ This note references #copilot and [a link](#ignored-anchor).
     ).toBe(true);
   });
 
+  it('evaluates a nested v2 rules config end to end', async () => {
+    const tempRoot = createTempDir('rules-v2');
+    const rulesPath = path.join(tempRoot, 'rules.json');
+
+    writeFile(
+      rulesPath,
+      JSON.stringify({
+        rulesVersion: 2,
+        rules: {
+          definitions: {
+            workPaths: { type: 'path', include: ['MSFT/**', '!MSFT/drafts/**'] },
+            publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+            notPrivate: { type: 'privacy', allowPrivate: false },
+            finalOnly: {
+              type: 'frontmatterField',
+              conditions: [{ field: 'status', op: 'equals', value: 'final' }],
+            },
+            eligible: {
+              all: [
+                { any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] },
+                { rule: 'notPrivate' },
+                { rule: 'finalOnly' },
+              ],
+            },
+          },
+          match: { rule: 'eligible' },
+        },
+      })
+    );
+
+    const publicationService = new PublicationService({ enableCache: false, logLevel: 'error' });
+    await publicationService.reloadRules(rulesPath);
+
+    const note = (body: string, frontmatter: string): string =>
+      `---\n${frontmatter}\n---\n\n${body}\n`;
+
+    const eligible = await publicationService.evaluateFile(
+      'MSFT/design/plan.md',
+      note('Ready.', 'status: final')
+    );
+    expect(eligible.eligible).toBe(true);
+
+    // Reached through the tag branch rather than the path branch.
+    const viaTag = await publicationService.evaluateFile(
+      'Personal/idea.md',
+      note('Tagged #ms-rte here.', 'status: final')
+    );
+    expect(viaTag.eligible).toBe(true);
+
+    // A tag on a task line annotates the task, so it does not make the note eligible.
+    const viaTaskTag = await publicationService.evaluateFile(
+      'Personal/idea.md',
+      note('- [ ] follow up #ms-rte', 'status: final')
+    );
+    expect(viaTaskTag.eligible).toBe(false);
+
+    // `!MSFT/drafts/**` inside include excludes, and no tag rescues it.
+    const excludedDraft = await publicationService.evaluateFile(
+      'MSFT/drafts/rough.md',
+      note('Rough.', 'status: final')
+    );
+    expect(excludedDraft.eligible).toBe(false);
+
+    const notFinal = await publicationService.evaluateFile(
+      'MSFT/design/plan.md',
+      note('Ready.', 'status: draft')
+    );
+    expect(notFinal.eligible).toBe(false);
+
+    // The nested decision is explained rather than reported as one opaque pass.
+    const trace = notFinal.rules[0];
+    expect(trace.children?.map((child) => child.name)).toEqual([
+      'any',
+      'notPrivate',
+      'finalOnly',
+    ]);
+  });
+
   it('treats malformed YAML as unsafe and keeps the workflow running', async () => {
     const tempRoot = createTempDir('malformed');
     const relativeNotePath = 'notes/broken.md';

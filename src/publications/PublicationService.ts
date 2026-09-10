@@ -3,6 +3,7 @@ import { EventEmitter } from '../utils/EventEmitter.js';
 import { Logger } from '../utils/Logger.js';
 import { FrontmatterParser } from '../parser/FrontmatterParser.js';
 import { InlineTagParser } from '../parser/InlineTagParser.js';
+import { attachTagSources } from '../rules/tagSources.js';
 import { RuleEngine } from '../rules/RuleEngine.js';
 import { RuleLoader } from '../rules/RuleLoader.js';
 import { ConfigManager } from '../config/ConfigManager.js';
@@ -13,7 +14,6 @@ import type {
   EligibilityResult,
   PublicationRuleConfig,
   CacheEntry,
-  RuleResult,
 } from './types.js';
 
 function hashInput(...parts: string[]): string {
@@ -150,17 +150,19 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     // Extract tags from frontmatter
     const frontmatterTags = this.frontmatterParser.getTags(frontmatter);
 
-    // Extract inline tags from content
-    const inlineTags = this.inlineTagParser.extractTags(contentToEval);
+    // Extract inline tags from content, keeping track of which were written on
+    // task lines: `#waiting` on a checkbox annotates that task rather than
+    // labelling the note, and rules need to be able to tell the two apart.
+    const sourcedTags = this.inlineTagParser.extractTagsWithSource(contentToEval);
+    const inlineTags = sourcedTags.filter((t) => t.source === 'inline').map((t) => t.tag);
+    const taskTags = sourcedTags.filter((t) => t.source === 'task').map((t) => t.tag);
 
-    // Combine all tags
-    const allTags = Array.from(new Set([...frontmatterTags, ...inlineTags]));
+    // `tags` keeps carrying the merged union so existing rules are unaffected;
+    // provenance travels alongside it under a reserved key.
+    const allTags = Array.from(new Set([...frontmatterTags, ...inlineTags, ...taskTags]));
 
-    // Add combined tags to frontmatter for rule evaluation
-    const evaluationFrontmatter = {
-      ...frontmatter,
-      tags: allTags,
-    };
+    const tagSources = { frontmatter: frontmatterTags, inline: inlineTags, task: taskTags };
+    const evaluationFrontmatter = attachTagSources({ ...frontmatter, tags: allTags }, tagSources);
 
     // Evaluate using rule engine
     const engineResult = this.ruleEngine.evaluate(
@@ -173,8 +175,9 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     const result: EligibilityResult = {
       eligible: engineResult.eligible,
       reason: engineResult.reason,
-      rules: engineResult.appliedRules as RuleResult[],
+      rules: engineResult.appliedRules,
       evaluatedAt: Date.now(),
+      tagSources,
     };
 
     // Cache the result

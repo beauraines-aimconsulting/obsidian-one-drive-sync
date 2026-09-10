@@ -1,42 +1,51 @@
 import { Rule } from '../Rule.js';
 import type { Frontmatter, EvaluationResult } from '../Rule.js';
-
-function globToRegex(glob: string): RegExp {
-  // Handle ** first - it should match everything including /
-  let regex = glob.replace(/\*\*/g, '___DOUBLE_STAR___');
-
-  // Escape special regex characters except glob patterns
-  regex = regex
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-    .replace(/\\\*/g, '[^/]*') // * -> [^/]* (match anything except /)
-    .replace(/\\\?/g, '[^/]'); // ? -> [^/] (match any char except /)
-
-  // Handle ** - it should match everything including /
-  regex = regex.replace(/___DOUBLE_STAR___/g, '.*');
-
-  return new RegExp(`^${regex}$`);
-}
+import { compileGlobs, normalizeGlobPath, type GlobMatcher } from '../../utils/glob.js';
 
 export interface PathRuleConfig {
+  /**
+   * Globs to publish. An entry prefixed with `!` is a negation and behaves
+   * exactly like an `exclude` entry, so a single ordered list can express
+   * "everything under Work except its drafts".
+   */
   include?: string[];
   exclude?: string[];
   vaultPath?: string;
+  caseInsensitive?: boolean;
 }
 
 /**
  * Checks if the file path matches include/exclude patterns.
  * Normalizes paths internally so callers can pass either absolute or relative paths.
+ *
+ * `exclude` always beats `include`: a path matching both is rejected. Excluding
+ * is how a note is kept private, so it must not be defeatable by adding a
+ * broader include pattern.
  */
 export class PathRule extends Rule {
   name = 'PathRule';
-  private includePatterns: RegExp[];
-  private excludePatterns: RegExp[];
+  private readonly hasInclude: boolean;
+  private readonly hasExclude: boolean;
+  private readonly matchesInclude: GlobMatcher;
+  private readonly matchesExclude: GlobMatcher;
   private vaultPath?: string;
 
   constructor(config?: PathRuleConfig) {
     super();
-    this.includePatterns = (config?.include ?? []).map((p) => globToRegex(p));
-    this.excludePatterns = (config?.exclude ?? []).map((p) => globToRegex(p));
+    const rawInclude = config?.include ?? [];
+    // `!pattern` inside `include` is folded into the exclude list rather than
+    // handled separately, so the precedence rule stays in one place.
+    const include = rawInclude.filter((pattern) => !pattern.startsWith('!'));
+    const negatedIncludes = rawInclude
+      .filter((pattern) => pattern.startsWith('!'))
+      .map((pattern) => pattern.slice(1));
+    const exclude = [...(config?.exclude ?? []), ...negatedIncludes];
+
+    const options = { caseInsensitive: config?.caseInsensitive ?? false };
+    this.hasInclude = include.length > 0;
+    this.hasExclude = exclude.length > 0;
+    this.matchesInclude = compileGlobs(include, options);
+    this.matchesExclude = compileGlobs(exclude, options);
     this.vaultPath = config?.vaultPath;
   }
 
@@ -48,11 +57,11 @@ export class PathRule extends Rule {
    */
   private normalizePath(filepath: string): string {
     // Convert backslashes to forward slashes for consistency
-    let normalized = filepath.replace(/\\/g, '/');
+    let normalized = normalizeGlobPath(filepath);
 
     // If vaultPath is configured and filepath is absolute, make it relative
     if (this.vaultPath) {
-      const normalizedVaultPath = this.vaultPath.replace(/\\/g, '/');
+      const normalizedVaultPath = normalizeGlobPath(this.vaultPath);
       // Check if the normalized path starts with the vault path (with trailing slash)
       if (normalized.startsWith(normalizedVaultPath + '/')) {
         // Strip the vault path prefix
@@ -75,10 +84,9 @@ export class PathRule extends Rule {
   evaluate(filepath: string, _frontmatter: Frontmatter): EvaluationResult {
     const normalizedPath = this.normalizePath(filepath);
 
-    // Check exclude patterns first
-    if (this.excludePatterns.length > 0) {
-      const isExcluded = this.excludePatterns.some((regex) => regex.test(normalizedPath));
-      if (isExcluded) {
+    // Check exclude patterns first: exclude always beats include.
+    if (this.hasExclude) {
+      if (this.matchesExclude(normalizedPath)) {
         return {
           passed: false,
           reason: `Path matches exclude pattern`,
@@ -87,9 +95,8 @@ export class PathRule extends Rule {
     }
 
     // Check include patterns if configured
-    if (this.includePatterns.length > 0) {
-      const isIncluded = this.includePatterns.some((regex) => regex.test(normalizedPath));
-      if (!isIncluded) {
+    if (this.hasInclude) {
+      if (!this.matchesInclude(normalizedPath)) {
         return {
           passed: false,
           reason: `Path does not match any include pattern`,
