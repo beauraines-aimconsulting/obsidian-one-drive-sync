@@ -11,10 +11,10 @@ export interface RulesFileConfig {
   rules?: {
     composition?: 'AND' | 'OR';
     pathRule?: { include?: string[]; exclude?: string[] };
-    tagRule?: { whitelist?: string[]; blacklist?: string[]; requireAny?: boolean };
+    tagRule?: { allowList?: string[]; ignoreList?: string[]; requireAny?: boolean };
     frontmatterRule?: boolean;
     privacyRule?: { allowPrivate?: boolean };
-    categoryRule?: { whitelist?: string[]; blacklist?: string[] };
+    categoryRule?: { allowList?: string[]; ignoreList?: string[] };
   };
 }
 

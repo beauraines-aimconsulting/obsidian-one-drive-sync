@@ -2,8 +2,8 @@ import { Rule } from '../Rule.js';
 import type { Frontmatter, EvaluationResult } from '../Rule.js';
 
 export interface CategoryRuleConfig {
-  whitelist?: string[];
-  blacklist?: string[];
+  allowList?: string[];
+  ignoreList?: string[];
 }
 
 /**
@@ -11,13 +11,13 @@ export interface CategoryRuleConfig {
  */
 export class CategoryRule extends Rule {
   name = 'CategoryRule';
-  private whitelist: Set<string>;
-  private blacklist: Set<string>;
+  private allowList: Set<string>;
+  private ignoreList: Set<string>;
 
   constructor(config?: CategoryRuleConfig) {
     super();
-    this.whitelist = new Set(config?.whitelist ?? []);
-    this.blacklist = new Set(config?.blacklist ?? []);
+    this.allowList = new Set(config?.allowList ?? []);
+    this.ignoreList = new Set(config?.ignoreList ?? []);
   }
 
   private getCategories(frontmatter: Frontmatter): string[] {
@@ -34,24 +34,24 @@ export class CategoryRule extends Rule {
   evaluate(_filepath: string, frontmatter: Frontmatter): EvaluationResult {
     const categories = this.getCategories(frontmatter);
 
-    // If whitelist is configured, check if any category is in the whitelist
-    if (this.whitelist.size > 0) {
-      const hasWhitelisted = categories.some((cat) => this.whitelist.has(cat));
-      if (!hasWhitelisted) {
+    // If allowList is configured, check if any category is in the allowList
+    if (this.allowList.size > 0) {
+      const hasAllowListed = categories.some((cat) => this.allowList.has(cat));
+      if (!hasAllowListed) {
         return {
           passed: false,
-          reason: `Category not in whitelist: ${Array.from(this.whitelist).join(', ')}`,
+          reason: `Category not in allowList: ${Array.from(this.allowList).join(', ')}`,
         };
       }
     }
 
-    // Check if any category is blacklisted
-    if (this.blacklist.size > 0) {
-      const hasBlacklisted = categories.some((cat) => this.blacklist.has(cat));
-      if (hasBlacklisted) {
+    // Check if any category is ignoreListed
+    if (this.ignoreList.size > 0) {
+      const hasIgnoreListed = categories.some((cat) => this.ignoreList.has(cat));
+      if (hasIgnoreListed) {
         return {
           passed: false,
-          reason: `Category is blacklisted: ${categories.filter((c) => this.blacklist.has(c)).join(', ')}`,
+          reason: `Category is ignoreListed: ${categories.filter((c) => this.ignoreList.has(c)).join(', ')}`,
         };
       }
     }

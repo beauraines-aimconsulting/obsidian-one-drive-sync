@@ -46,33 +46,33 @@ describe('Publication Rules', () => {
   });
 
   describe('CategoryRule', () => {
-    it('should pass with whitelist match', () => {
+    it('should pass with allowList match', () => {
       const rule = new CategoryRule({
-        whitelist: ['work', 'projects'],
+        allowList: ['work', 'projects'],
       });
       const result = rule.evaluate('test.md', { category: 'work' }, '');
       expect(result.passed).toBe(true);
     });
 
-    it('should fail with whitelist mismatch', () => {
+    it('should fail with allowList mismatch', () => {
       const rule = new CategoryRule({
-        whitelist: ['work', 'projects'],
+        allowList: ['work', 'projects'],
       });
       const result = rule.evaluate('test.md', { category: 'personal' }, '');
       expect(result.passed).toBe(false);
     });
 
-    it('should fail with blacklist match', () => {
+    it('should fail with ignoreList match', () => {
       const rule = new CategoryRule({
-        blacklist: ['personal', 'private'],
+        ignoreList: ['personal', 'private'],
       });
       const result = rule.evaluate('test.md', { category: 'personal' }, '');
       expect(result.passed).toBe(false);
     });
 
-    it('should pass with multiple categories and one whitelisted', () => {
+    it('should pass with multiple categories and one allowListed', () => {
       const rule = new CategoryRule({
-        whitelist: ['work'],
+        allowList: ['work'],
       });
       const result = rule.evaluate(
         'test.md',
@@ -84,21 +84,21 @@ describe('Publication Rules', () => {
   });
 
   describe('TagRule', () => {
-    it('should pass when tags are in whitelist', () => {
+    it('should pass when tags are in allowList', () => {
       const rule = new TagRule({
-        whitelist: ['important', 'urgent'],
+        allowList: ['important', 'urgent'],
       });
       const result = rule.evaluate(
         'test.md',
         { tags: ['important', 'work'] },
         ''
       );
-      expect(result.passed).toBe(false); // 'work' not in whitelist
+      expect(result.passed).toBe(false); // 'work' not in allowList
     });
 
-    it('should fail when any tag is blacklisted', () => {
+    it('should fail when any tag is ignoreListed', () => {
       const rule = new TagRule({
-        blacklist: ['draft', 'wip'],
+        ignoreList: ['draft', 'wip'],
       });
       const result = rule.evaluate('test.md', { tags: ['important', 'draft'] }, '');
       expect(result.passed).toBe(false);
@@ -106,7 +106,7 @@ describe('Publication Rules', () => {
 
     it('should pass with requireAny when at least one tag matches', () => {
       const rule = new TagRule({
-        whitelist: ['important', 'urgent'],
+        allowList: ['important', 'urgent'],
         requireAny: true,
       });
       const result = rule.evaluate(
@@ -119,7 +119,7 @@ describe('Publication Rules', () => {
 
     it('should fail with requireAny when no tags match', () => {
       const rule = new TagRule({
-        whitelist: ['important', 'urgent'],
+        allowList: ['important', 'urgent'],
         requireAny: true,
       });
       const result = rule.evaluate('test.md', { tags: ['work', 'routine'] }, '');

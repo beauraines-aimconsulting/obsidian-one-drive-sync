@@ -2,8 +2,8 @@ import { Rule } from '../Rule.js';
 import type { Frontmatter, EvaluationResult } from '../Rule.js';
 
 export interface TagRuleConfig {
-  whitelist?: string[];
-  blacklist?: string[];
+  allowList?: string[];
+  ignoreList?: string[];
   requireAny?: boolean;
 }
 
@@ -12,14 +12,14 @@ export interface TagRuleConfig {
  */
 export class TagRule extends Rule {
   name = 'TagRule';
-  private whitelist: Set<string>;
-  private blacklist: Set<string>;
+  private allowList: Set<string>;
+  private ignoreList: Set<string>;
   private requireAny: boolean;
 
   constructor(config?: TagRuleConfig) {
     super();
-    this.whitelist = new Set(config?.whitelist ?? []);
-    this.blacklist = new Set(config?.blacklist ?? []);
+    this.allowList = new Set(config?.allowList ?? []);
+    this.ignoreList = new Set(config?.ignoreList ?? []);
     this.requireAny = config?.requireAny ?? false;
   }
 
@@ -34,37 +34,37 @@ export class TagRule extends Rule {
   evaluate(_filepath: string, frontmatter: Frontmatter): EvaluationResult {
     const tags = this.getTags(frontmatter);
 
-    // Check blacklist first
-    if (this.blacklist.size > 0) {
-      const hasBlacklisted = tags.some((tag) => this.blacklist.has(tag));
-      if (hasBlacklisted) {
+    // Check ignoreList first
+    if (this.ignoreList.size > 0) {
+      const hasIgnoreListed = tags.some((tag) => this.ignoreList.has(tag));
+      if (hasIgnoreListed) {
         return {
           passed: false,
-          reason: `Tag is blacklisted: ${tags.filter((t) => this.blacklist.has(t)).join(', ')}`,
+          reason: `Tag is ignoreListed: ${tags.filter((t) => this.ignoreList.has(t)).join(', ')}`,
         };
       }
     }
 
-    // Check whitelist if configured
-    if (this.whitelist.size > 0) {
+    // Check allowList if configured
+    if (this.allowList.size > 0) {
       if (this.requireAny) {
-        // At least one tag must be in whitelist
-        const hasWhitelisted = tags.some((tag) => this.whitelist.has(tag));
-        if (!hasWhitelisted) {
+        // At least one tag must be in allowList
+        const hasAllowListed = tags.some((tag) => this.allowList.has(tag));
+        if (!hasAllowListed) {
           return {
             passed: false,
-            reason: `None of the tags match whitelist: ${Array.from(this.whitelist).join(', ')}`,
+            reason: `None of the tags match allowList: ${Array.from(this.allowList).join(', ')}`,
           };
         }
       }
-      // If not requireAny, just check that no tags are outside the whitelist
+      // If not requireAny, just check that no tags are outside the allowList
       else {
-        const allInWhitelist = tags.every((tag) => this.whitelist.has(tag));
-        if (tags.length > 0 && !allInWhitelist) {
-          const invalidTags = tags.filter((t) => !this.whitelist.has(t));
+        const allInAllowList = tags.every((tag) => this.allowList.has(tag));
+        if (tags.length > 0 && !allInAllowList) {
+          const invalidTags = tags.filter((t) => !this.allowList.has(t));
           return {
             passed: false,
-            reason: `Tags not in whitelist: ${invalidTags.join(', ')}`,
+            reason: `Tags not in allowList: ${invalidTags.join(', ')}`,
           };
         }
       }

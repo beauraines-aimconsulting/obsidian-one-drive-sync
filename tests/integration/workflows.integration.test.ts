@@ -135,7 +135,7 @@ This note references #copilot and [a link](#ignored-anchor).
     publicationService.addRule('privacy', new PrivacyRule());
     publicationService.addRule(
       'category',
-      new CategoryRule({ whitelist: ['knowledge'] })
+      new CategoryRule({ allowList: ['knowledge'] })
     );
     publicationService.addRule(
       'path',
