@@ -63,8 +63,8 @@ const pathRuleSchema = z
 const tagRuleSchema = z
   .object({
     type: z.literal('tag'),
-    whitelist: tagList.optional(),
-    blacklist: tagList.optional(),
+    allowList: tagList.optional(),
+    ignoreList: tagList.optional(),
     requireAny: z.boolean().optional(),
     requireAll: z.boolean().optional(),
     source: tagSourceSelector.optional(),
@@ -77,8 +77,8 @@ const tagRuleSchema = z
 const categoryRuleSchema = z
   .object({
     type: z.literal('category'),
-    whitelist: tagList.optional(),
-    blacklist: tagList.optional(),
+    allowList: tagList.optional(),
+    ignoreList: tagList.optional(),
     fromPath: z.boolean().optional(),
     matchNested: z.boolean().optional(),
     caseInsensitive: z.boolean().optional(),
@@ -303,8 +303,8 @@ const rulesSectionV1Schema = z
       .optional(),
     tagRule: z
       .object({
-        whitelist: tagList.optional(),
-        blacklist: tagList.optional(),
+        allowList: tagList.optional(),
+        ignoreList: tagList.optional(),
         requireAny: z.boolean().optional(),
         negate: z.boolean().optional(),
       })
@@ -317,8 +317,8 @@ const rulesSectionV1Schema = z
       .optional(),
     categoryRule: z
       .object({
-        whitelist: tagList.optional(),
-        blacklist: tagList.optional(),
+        allowList: tagList.optional(),
+        ignoreList: tagList.optional(),
         negate: z.boolean().optional(),
       })
       .strict()

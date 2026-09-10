@@ -31,8 +31,8 @@ export interface PathRuleDefinition extends BaseRuleDefinition {
 
 export interface TagRuleDefinition extends BaseRuleDefinition {
   type: 'tag';
-  whitelist?: string[];
-  blacklist?: string[];
+  allowList?: string[];
+  ignoreList?: string[];
   requireAny?: boolean;
   requireAll?: boolean;
   source?: 'frontmatter' | 'inline' | 'task' | 'both' | 'all';
@@ -42,8 +42,8 @@ export interface TagRuleDefinition extends BaseRuleDefinition {
 
 export interface CategoryRuleDefinition extends BaseRuleDefinition {
   type: 'category';
-  whitelist?: string[];
-  blacklist?: string[];
+  allowList?: string[];
+  ignoreList?: string[];
   fromPath?: boolean;
   matchNested?: boolean;
   caseInsensitive?: boolean;
@@ -132,14 +132,18 @@ export interface RulesSectionV1 {
   composition?: 'AND' | 'OR';
   pathRule?: { include?: string[]; exclude?: string[]; negate?: boolean };
   tagRule?: {
-    whitelist?: string[];
-    blacklist?: string[];
+    allowList?: string[];
+    ignoreList?: string[];
     requireAny?: boolean;
     negate?: boolean;
   };
   frontmatterRule?: boolean;
   privacyRule?: { allowPrivate?: boolean; negate?: boolean };
-  categoryRule?: { whitelist?: string[]; blacklist?: string[]; negate?: boolean };
+  categoryRule?: {
+    allowList?: string[];
+    ignoreList?: string[];
+    negate?: boolean;
+  };
 }
 
 export interface RulesDocumentV1 {

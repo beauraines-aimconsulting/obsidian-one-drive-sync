@@ -9,11 +9,11 @@ import {
 } from '../tagSources.js';
 
 export interface TagRuleConfig {
-  whitelist?: string[];
-  blacklist?: string[];
-  /** Pass when at least one tag is whitelisted, rather than requiring all tags to be. */
+  allowList?: string[];
+  ignoreList?: string[];
+  /** Pass when at least one tag is allowListed, rather than requiring all tags to be. */
   requireAny?: boolean;
-  /** Require every whitelist entry to be present on the note. */
+  /** Require every allowList entry to be present on the note. */
   requireAll?: boolean;
   /**
    * Which tags to consider. Defaults to `both` — frontmatter and inline tags,
@@ -26,19 +26,19 @@ export interface TagRuleConfig {
 }
 
 /**
- * Checks if the file's tags match whitelist or blacklist rules.
+ * Checks if the file's tags match allowList or ignoreList rules.
  *
- * Whitelist and blacklist entries may be plain tags or globs (`project/*`), and
+ * AllowList and ignoreList entries may be plain tags or globs (`project/*`), and
  * a leading `#` is accepted so config can be written the way tags appear in a
  * note.
  */
 export class TagRule extends Rule {
   name = 'TagRule';
-  private readonly whitelist: string[];
-  private readonly blacklist: string[];
-  private readonly matchWhitelist: (value: string) => boolean;
-  private readonly matchBlacklist: (value: string) => boolean;
-  private readonly matchEachWhitelistEntry: Array<(value: string) => boolean>;
+  private readonly allowList: string[];
+  private readonly ignoreList: string[];
+  private readonly matchAllowList: (value: string) => boolean;
+  private readonly matchIgnoreList: (value: string) => boolean;
+  private readonly matchEachAllowListEntry: Array<(value: string) => boolean>;
   private readonly requireAny: boolean;
   private readonly requireAll: boolean;
   private readonly source: TagSourceSelector;
@@ -47,8 +47,8 @@ export class TagRule extends Rule {
 
   constructor(config?: TagRuleConfig) {
     super();
-    this.whitelist = (config?.whitelist ?? []).map(normalizeTag);
-    this.blacklist = (config?.blacklist ?? []).map(normalizeTag);
+    this.allowList = (config?.allowList ?? []).map(normalizeTag);
+    this.ignoreList = (config?.ignoreList ?? []).map(normalizeTag);
     this.requireAny = config?.requireAny ?? false;
     this.requireAll = config?.requireAll ?? false;
     this.source = config?.source ?? 'both';
@@ -56,11 +56,11 @@ export class TagRule extends Rule {
     this.matchNested = config?.matchNested ?? false;
 
     const options = { caseInsensitive: this.caseInsensitive, dot: true };
-    this.matchWhitelist = compileGlobs(this.expand(this.whitelist), options);
-    this.matchBlacklist = compileGlobs(this.expand(this.blacklist), options);
+    this.matchAllowList = compileGlobs(this.expand(this.allowList), options);
+    this.matchIgnoreList = compileGlobs(this.expand(this.ignoreList), options);
     // `requireAll` asks a per-entry question, so each entry needs its own
     // matcher rather than the combined one.
-    this.matchEachWhitelistEntry = this.whitelist.map((pattern) =>
+    this.matchEachAllowListEntry = this.allowList.map((pattern) =>
       compileGlobs(this.expand([pattern]), options)
     );
   }
@@ -82,17 +82,17 @@ export class TagRule extends Rule {
     const tags = this.getTags(frontmatter);
     const where = describeSelector(this.source);
 
-    if (this.blacklist.length > 0) {
-      const blacklisted = tags.filter((tag) => this.matchBlacklist(tag));
-      if (blacklisted.length > 0) {
-        return { passed: false, reason: `Tag is blacklisted: ${blacklisted.join(', ')}` };
+    if (this.ignoreList.length > 0) {
+      const ignoreListed = tags.filter((tag) => this.matchIgnoreList(tag));
+      if (ignoreListed.length > 0) {
+        return { passed: false, reason: `Tag is ignoreListed: ${ignoreListed.join(', ')}` };
       }
     }
 
-    if (this.whitelist.length > 0) {
+    if (this.allowList.length > 0) {
       if (this.requireAll) {
-        const missing = this.whitelist.filter(
-          (_pattern, index) => !tags.some((tag) => this.matchEachWhitelistEntry[index](tag))
+        const missing = this.allowList.filter(
+          (_pattern, index) => !tags.some((tag) => this.matchEachAllowListEntry[index](tag))
         );
 
         if (missing.length > 0) {
@@ -102,16 +102,16 @@ export class TagRule extends Rule {
           };
         }
       } else if (this.requireAny) {
-        if (!tags.some((tag) => this.matchWhitelist(tag))) {
+        if (!tags.some((tag) => this.matchAllowList(tag))) {
           return {
             passed: false,
-            reason: `None of the ${where} match whitelist: ${this.whitelist.join(', ')}`,
+            reason: `None of the ${where} match allowList: ${this.allowList.join(', ')}`,
           };
         }
       } else {
-        const invalidTags = tags.filter((tag) => !this.matchWhitelist(tag));
+        const invalidTags = tags.filter((tag) => !this.matchAllowList(tag));
         if (tags.length > 0 && invalidTags.length > 0) {
-          return { passed: false, reason: `Tags not in whitelist: ${invalidTags.join(', ')}` };
+          return { passed: false, reason: `Tags not in allowList: ${invalidTags.join(', ')}` };
         }
       }
     }

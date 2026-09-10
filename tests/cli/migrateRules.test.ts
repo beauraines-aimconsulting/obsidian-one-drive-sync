@@ -23,7 +23,7 @@ describe('migrateRulesFile', () => {
     rules: {
       composition: 'OR',
       pathRule: { include: ['MSFT/**'] },
-      tagRule: { whitelist: ['ms-rte'], requireAny: true },
+      tagRule: { allowList: ['ms-rte'], requireAny: true },
     },
   };
 

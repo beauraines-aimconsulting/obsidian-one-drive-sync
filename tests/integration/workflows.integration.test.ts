@@ -135,7 +135,7 @@ This note references #copilot and [a link](#ignored-anchor).
     publicationService.addRule('privacy', new PrivacyRule());
     publicationService.addRule(
       'category',
-      new CategoryRule({ whitelist: ['knowledge'] })
+      new CategoryRule({ allowList: ['knowledge'] })
     );
     publicationService.addRule(
       'path',
@@ -168,7 +168,7 @@ This note references #copilot and [a link](#ignored-anchor).
         rules: {
           definitions: {
             workPaths: { type: 'path', include: ['MSFT/**', '!MSFT/drafts/**'] },
-            publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+            publicTags: { type: 'tag', allowList: ['ms-rte'], requireAny: true },
             notPrivate: { type: 'privacy', allowPrivate: false },
             finalOnly: {
               type: 'frontmatterField',

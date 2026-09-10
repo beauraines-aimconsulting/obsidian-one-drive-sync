@@ -53,7 +53,7 @@ describe('RuleLoader', () => {
 
   it('loads tagRule from config', () => {
     const filePath = writeConfig({
-      rules: { tagRule: { whitelist: ['ms-rte', 'aim'], requireAny: true } },
+      rules: { tagRule: { allowList: ['ms-rte', 'aim'], requireAny: true } },
     });
     const engine = loader.loadFromFile(filePath);
     expect(engine.getRuleCount()).toBe(1);
@@ -74,7 +74,7 @@ describe('RuleLoader', () => {
       rules: {
         composition: 'OR',
         pathRule: { include: ['MSFT/**', 'AIM/**'] },
-        tagRule: { whitelist: ['ms-rte', 'sbux', 'aim'], requireAny: true },
+        tagRule: { allowList: ['ms-rte', 'sbux', 'aim'], requireAny: true },
       },
     });
     const engine = loader.loadFromFile(filePath);
@@ -87,7 +87,7 @@ describe('RuleLoader', () => {
       rules: {
         composition: 'OR',
         pathRule: { include: ['MSFT/**', 'AIM/**'] },
-        tagRule: { whitelist: ['ms-rte', 'sbux', 'aim'], requireAny: true },
+        tagRule: { allowList: ['ms-rte', 'sbux', 'aim'], requireAny: true },
       },
     });
     const engine = loader.loadFromFile(filePath);
@@ -116,7 +116,7 @@ describe('RuleLoader', () => {
 
   it('loads categoryRule from config', () => {
     const filePath = writeConfig({
-      rules: { categoryRule: { whitelist: ['work', 'tech'] } },
+      rules: { categoryRule: { allowList: ['work', 'tech'] } },
     });
     const engine = loader.loadFromFile(filePath);
     expect(engine.getRuleCount()).toBe(1);
@@ -180,7 +180,7 @@ describe('RuleLoader v2 documents', () => {
       rules: {
         definitions: {
           workPaths: { type: 'path', include: ['MSFT/**'] },
-          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+          publicTags: { type: 'tag', allowList: ['ms-rte'], requireAny: true },
           notPrivate: { type: 'privacy', allowPrivate: false },
         },
         match: {
@@ -217,7 +217,7 @@ describe('RuleLoader v2 documents', () => {
       rules: {
         definitions: {
           workPaths: { type: 'path', include: ['MSFT/**'] },
-          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+          publicTags: { type: 'tag', allowList: ['ms-rte'], requireAny: true },
         },
         match: { not: { any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] } },
       },
@@ -233,7 +233,7 @@ describe('RuleLoader v2 documents', () => {
       rules: {
         definitions: {
           workPaths: { type: 'path', include: ['MSFT/**'] },
-          publicTags: { type: 'tag', whitelist: ['ms-rte'], requireAny: true },
+          publicTags: { type: 'tag', allowList: ['ms-rte'], requireAny: true },
         },
         match: { all: [{ any: [{ rule: 'workPaths' }, { rule: 'publicTags' }] }] },
       },
@@ -321,7 +321,7 @@ describe('RuleLoader new rule types', () => {
     const document = (source: string) => ({
       rulesVersion: 2,
       rules: {
-        definitions: { tags: { type: 'tag', whitelist: ['waiting'], requireAny: true, source } },
+        definitions: { tags: { type: 'tag', allowList: ['waiting'], requireAny: true, source } },
         match: { rule: 'tags' },
       },
     });

@@ -84,7 +84,7 @@
 
 ### Rule Implementations
 1. **FrontmatterRule**: Check for publish: true in file frontmatter
-2. **CategoryRule**: Whitelist/blacklist by category (from frontmatter or folder structure)
+2. **CategoryRule**: AllowList/ignoreList by category (from frontmatter or folder structure)
 3. **PathRule**: Include/exclude by file path patterns (glob-based)
 4. **PrivacyRule**: Strip/exclude files marked as private
 5. **TagRule**: Include/exclude by tags in frontmatter

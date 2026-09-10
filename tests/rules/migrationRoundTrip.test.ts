@@ -22,7 +22,7 @@ describe('rules migration round-trip', () => {
         include: ['MSFT/**', 'AIM/**'],
       },
       tagRule: {
-        whitelist: ['ms-rte', 'sbux', 'aim'],
+        allowList: ['ms-rte', 'sbux', 'aim'],
         requireAny: true,
       },
     },
@@ -48,13 +48,13 @@ describe('rules migration round-trip', () => {
       content: '',
     },
     {
-      name: 'excluded path, whitelisted tag',
+      name: 'excluded path, allowListed tag',
       filepath: 'Personal/journal.md',
       frontmatter: { tags: ['ms-rte'] },
       content: '',
     },
     {
-      name: 'excluded path, other whitelisted tag',
+      name: 'excluded path, other allowListed tag',
       filepath: 'Random/thing.md',
       frontmatter: { tags: ['sbux'] },
       content: '',
@@ -66,7 +66,7 @@ describe('rules migration round-trip', () => {
       content: '',
     },
     {
-      name: 'included path and whitelisted tag',
+      name: 'included path and allowListed tag',
       filepath: 'MSFT/design/notes.md',
       frontmatter: { tags: ['aim'] },
       content: '',
