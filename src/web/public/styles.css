@@ -281,6 +281,11 @@ pre {
   overflow-y: auto;
 }
 
+#preview-content {
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
 .summary-list {
   display: grid;
   gap: 0.9rem;
@@ -355,6 +360,8 @@ pre {
 .file-list {
   display: grid;
   gap: 0.75rem;
+  max-height: 32rem;
+  overflow-y: auto;
 }
 
 .file-list-item {
