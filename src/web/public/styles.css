@@ -275,6 +275,12 @@ pre {
   overscroll-behavior: contain;
 }
 
+#trace-output,
+#result-json {
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
 .summary-list {
   display: grid;
   gap: 0.9rem;
