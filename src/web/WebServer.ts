@@ -8,6 +8,8 @@ import { getRules, postValidateRules, putRules } from './api/rules.js';
 import { getFileContent, getFiles } from './api/files.js';
 import { postRulesTest } from './api/ruleTest.js';
 import { getStatus } from './api/status.js';
+import { getEvents } from './api/events.js';
+import { getSyncRun, postSync } from './api/sync.js';
 import { applyApiSecurity, isLoopbackBindAddress, sendApiError } from './security.js';
 import { serveStaticFile } from './staticFiles.js';
 import type { RouteContext, WebServerOptions } from './types.js';
@@ -23,6 +25,7 @@ export class WebServer {
       writeHealthResponse(response, this.options.healthStatus());
     });
     this.router.add('GET', '/api/status', getStatus);
+    this.router.add('GET', '/api/events', getEvents);
     this.router.add('GET', '/api/config', getConfig);
     this.router.add('GET', '/api/rules', getRules);
     this.router.add('PUT', '/api/rules', putRules);
@@ -30,6 +33,8 @@ export class WebServer {
     this.router.add('POST', '/api/rules/test', postRulesTest);
     this.router.add('GET', '/api/files', getFiles);
     this.router.add('GET', '/api/files/:filepath*', getFileContent);
+    this.router.add('POST', '/api/sync', postSync);
+    this.router.add('GET', '/api/sync/:runId', getSyncRun);
   }
 
   async start(): Promise<void> {
@@ -87,6 +92,7 @@ export class WebServer {
     const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
     const security = await applyApiSecurity(request, response, {
       pathname: requestUrl.pathname,
+      requestUrl,
       token: this.options.token,
       readOnly: this.options.readOnly,
     });

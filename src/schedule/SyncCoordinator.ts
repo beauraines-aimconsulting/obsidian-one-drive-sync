@@ -33,6 +33,7 @@ export class SyncCoordinator {
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly deferred = new Set<string>();
   private fullSyncRunning = false;
+  private syncInProgress: Promise<void> | null = null;
   private lastFileProcessedAt: string | null = null;
 
   constructor(options: SyncCoordinatorOptions) {
@@ -45,7 +46,7 @@ export class SyncCoordinator {
   }
 
   isFullSyncRunning(): boolean {
-    return this.fullSyncRunning;
+    return this.syncInProgress !== null;
   }
 
   /** Files seen during a full sync and not yet replayed. */
@@ -100,7 +101,37 @@ export class SyncCoordinator {
    * halfway through an individual upload.
    */
   async runFullSync(signal: RunSignal = { cancelled: false }): Promise<void> {
-    const runner = this.options.runFullSync;
+    if (this.syncInProgress) {
+      return this.syncInProgress;
+    }
+
+    const started = this.startFullSync(signal);
+    if (started) {
+      await started;
+    }
+  }
+
+  startFullSync(
+    signal: RunSignal = { cancelled: false },
+    runner: ((signal: RunSignal) => Promise<void>) | undefined = this.options.runFullSync
+  ): Promise<void> | null {
+    if (this.syncInProgress) {
+      return null;
+    }
+
+    const work = this.executeFullSync(signal, runner).finally(() => {
+      if (this.syncInProgress === work) {
+        this.syncInProgress = null;
+      }
+    });
+    this.syncInProgress = work;
+    return work;
+  }
+
+  private async executeFullSync(
+    signal: RunSignal,
+    runner: ((signal: RunSignal) => Promise<void>) | undefined
+  ): Promise<void> {
     if (!runner) return;
 
     await this.drain();

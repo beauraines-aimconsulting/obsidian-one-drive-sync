@@ -15,6 +15,8 @@ import { SyncCoordinator } from './schedule/SyncCoordinator.js';
 import { describeRunError } from './schedule/runErrors.js';
 import { HealthServer } from './health/HealthServer.js';
 import { WebServer } from './web/WebServer.js';
+import { WebEventStream } from './web/events.js';
+import { SyncRunManager, type SyncRunSummary } from './web/syncRuns.js';
 import { parseDuration } from './utils/duration.js';
 import type { CliOptions } from './cli/types.js';
 
@@ -382,6 +384,13 @@ async function main(): Promise<number> {
     const relativePath = path.relative(config.vaultPath, filepath);
     if (syncService) {
       const result = await syncService.syncFile(relativePath, (msg) => console.log(msg));
+      events?.publish({
+        type: 'file-evaluated',
+        timestamp: new Date().toISOString(),
+        filepath: relativePath,
+        action: result.action,
+        ...(result.error ? { error: result.error } : {}),
+      });
       if (result.action === 'failed') {
         console.error(`❌ ${relativePath} - sync failed: ${result.error}`);
       }
@@ -392,6 +401,15 @@ async function main(): Promise<number> {
       fs.readFileSync(filepath, 'utf-8')
     );
     const icon = result.parseError ? '⚠️' : result.eligible ? '✅' : '⛔';
+    events?.publish({
+      type: 'file-evaluated',
+      timestamp: new Date().toISOString(),
+      filepath: relativePath,
+      action: result.parseError ? 'parse-error' : result.eligible ? 'eligible' : 'ineligible',
+      eligible: result.eligible,
+      reason: result.reason,
+      parseError: Boolean(result.parseError),
+    });
     console.log(`${icon} ${relativePath} - ${result.reason}`);
   };
   if (options.watch) {
@@ -412,24 +430,9 @@ async function main(): Promise<number> {
 
   let failureLimitReached = false;
   let runNumber = 0;
-  let lastOutcome: SyncOutcome | undefined;
+  const events = new WebEventStream();
   const coordinator = new SyncCoordinator({
     processFile: evaluate,
-    ...(syncService
-      ? {
-          runFullSync: async (): Promise<void> => {
-            runNumber += 1;
-            lastOutcome = undefined;
-            lastOutcome = await runSync(
-              config,
-              publicationService,
-              options,
-              syncService,
-              `Scheduled sync #${runNumber}...`
-            );
-          },
-        }
-      : {}),
     logger: {
       info: (message) => console.log(message),
       error: (message) => console.error(message),
@@ -454,6 +457,7 @@ async function main(): Promise<number> {
   let pendingShutdownSignal: string | undefined;
 
   let scheduler: Scheduler | undefined;
+  let syncRuns: SyncRunManager | undefined;
   if (scheduleConfig && syncService) {
     const history = new ScheduleHistoryStore();
     console.log(`🗂️  Run history: ${history.getFilePath()}`);
@@ -467,29 +471,10 @@ async function main(): Promise<number> {
         if (run.status !== 'skipped') history.record(run);
       },
       task: async (signal) => {
-        const startedAt = new Date().toISOString();
-        try {
-          await coordinator.runFullSync(signal);
-        } catch (error) {
-          // Rethrown with guidance attached so the recorded run, the log line
-          // and the health body all carry the actionable version.
-          throw new Error(describeRunError(error));
+        if (!syncRuns) {
+          throw new Error('Sync run manager is not configured');
         }
-        // `running` lets the scheduler classify the run: `partial` when some
-        // files failed, `success` otherwise.
-        return {
-          startedAt,
-          status: 'running',
-          ...(lastOutcome
-            ? {
-                uploaded: lastOutcome.uploaded,
-                skipped: lastOutcome.skipped,
-                removed: lastOutcome.removed,
-                failed: lastOutcome.failed,
-                parseErrors: lastOutcome.parseErrors,
-              }
-            : {}),
-        };
+        return syncRuns.executeScheduledRun(signal);
       },
       // A repeatedly failing sync is usually expired credentials or a dead
       // network. Exiting lets the supervisor (systemd, Docker) restart or
@@ -501,12 +486,80 @@ async function main(): Promise<number> {
         else pendingShutdownSignal = 'failure limit';
       },
     });
-    scheduler.start();
   } else if (scheduleConfig) {
     console.warn(
       '⚠️  A schedule is configured but --sync is not enabled; nothing will be uploaded'
     );
   }
+
+  if (syncService) {
+    syncRuns = new SyncRunManager({
+      coordinator,
+      events,
+      scheduler,
+      defaults: {
+        dryRun: options.dryRun,
+        force: options.forceSync,
+      },
+      executeSync: async ({ dryRun, force, source, onProgress }): Promise<SyncRunSummary> => {
+        runNumber += source === 'schedule' ? 1 : 0;
+        const label =
+          source === 'schedule' ? `Scheduled sync #${runNumber}...` : 'Web-triggered sync...';
+        const log = (message: string) => {
+          console.log(message);
+          onProgress(message);
+        };
+
+        log(`🔄 ${label}`);
+        log(`   Vault: ${config.vaultPath}`);
+        log(`   Target: OneDrive:/${config.oneDriveFolder}`);
+        if (dryRun) log('   Mode: DRY RUN (no uploads)');
+        if (force) log('   Mode: FORCE (re-upload all)');
+        log('');
+
+        try {
+          const result = await syncService.syncWithOverrides(
+            { dryRun, forceSync: force },
+            log
+          );
+
+          log('');
+          log('────────────────────────────────────────');
+          log('Sync complete:');
+          log(`  ⬆️  Uploaded: ${result.uploaded.length}`);
+          log(`  ⏭️  Skipped (unchanged): ${result.skipped.length}`);
+          log(`  🗑️  Removed: ${result.removed.length}`);
+          if (result.parseErrors.length > 0) {
+            log(`  ⚠️  Skipped (frontmatter parse errors): ${result.parseErrors.length}`);
+            for (const parseError of result.parseErrors) {
+              log(`     ${parseError.filepath}: ${parseError.reason}`);
+            }
+          }
+          if (result.failed.length > 0) {
+            log(`  ❌ Failed: ${result.failed.length}`);
+            for (const failure of result.failed) {
+              log(`     ${failure.filepath}: ${failure.error}`);
+            }
+          }
+          log(`  ⏱️  Duration: ${(result.duration / 1000).toFixed(1)}s`);
+
+          return {
+            uploaded: result.uploaded.length,
+            skipped: result.skipped.length,
+            removed: result.removed.length,
+            failed: result.failed.length,
+            parseErrors: result.parseErrors.length,
+            totalEligible: result.totalEligible,
+            durationMs: result.duration,
+          };
+        } catch (error) {
+          throw new Error(describeRunError(error));
+        }
+      },
+    });
+  }
+
+  scheduler?.start();
 
   const healthStatus = () => ({
     watcherActive: watcher.isWatching(),
@@ -526,6 +579,9 @@ async function main(): Promise<number> {
         publicationService,
         ...(syncService ? { syncService } : {}),
         ...(scheduler ? { scheduler } : {}),
+        events,
+        ...(syncRuns ? { syncRuns } : {}),
+        syncCoordinator: coordinator,
         healthStatus,
       })
     : new HealthServer(healthStatus, config.healthPort);

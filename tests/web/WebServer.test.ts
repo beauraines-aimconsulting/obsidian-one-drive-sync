@@ -262,8 +262,9 @@ describe('WebServer', () => {
   it('serves the static status shell and browser assets', async () => {
     const server = await startWebServer();
 
-    const [indexResponse, appResponse, rulesResponse, testResponse, filesResponse] = await Promise.all([
+    const [indexResponse, statusResponse, appResponse, rulesResponse, testResponse, filesResponse] = await Promise.all([
       fetch(`http://127.0.0.1:${server.getPort()}/`),
+      fetch(`http://127.0.0.1:${server.getPort()}/status.html`),
       fetch(`http://127.0.0.1:${server.getPort()}/app.js`),
       fetch(`http://127.0.0.1:${server.getPort()}/rules.html`),
       fetch(`http://127.0.0.1:${server.getPort()}/test.html`),
@@ -272,11 +273,15 @@ describe('WebServer', () => {
 
     expect(indexResponse.status).toBe(200);
     expect(indexResponse.headers.get('content-type')).toContain('text/html');
-    expect(await indexResponse.text()).toContain('Local admin UI');
+    expect(await indexResponse.text()).toContain('Sync control');
+
+    expect(statusResponse.status).toBe(200);
+    expect(statusResponse.headers.get('content-type')).toContain('text/html');
+    expect(await statusResponse.text()).toContain('live events');
 
     expect(appResponse.status).toBe(200);
     expect(appResponse.headers.get('content-type')).toContain('text/javascript');
-    expect(await appResponse.text()).toContain("fetchJson('/api/status'");
+    expect(await appResponse.text()).toContain('new EventSource');
 
     expect(rulesResponse.status).toBe(200);
     expect(rulesResponse.headers.get('content-type')).toContain('text/html');

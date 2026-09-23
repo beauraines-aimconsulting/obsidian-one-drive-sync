@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Obsidian OneDrive Sync Status</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <h1>Obsidian OneDrive Sync</h1>
+          <p class="subtitle">Status, sync control, and live events.</p>
+        </div>
+        <nav class="nav-links" aria-label="Primary">
+          <a class="nav-link nav-link-current" href="/status.html">Status</a>
+          <a class="nav-link" href="/rules.html">Rules</a>
+          <a class="nav-link" href="/test.html">Rule tester</a>
+          <a class="nav-link" href="/files.html">Files</a>
+        </nav>
+      </header>
+
+      <section id="read-only-notice" class="notice notice-warning hidden">
+        Read-only mode is enabled. Sync triggers and rule saves are blocked.
+      </section>
+
+      <section class="grid summary-grid">
+        <section class="card">
+          <h2>Watcher</h2>
+          <dl class="summary-list">
+            <div>
+              <dt>State</dt>
+              <dd id="watcher-active">Loading…</dd>
+            </div>
+            <div>
+              <dt>Last file processed</dt>
+              <dd id="watcher-last-file">Loading…</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="card">
+          <h2>Sync state</h2>
+          <dl class="summary-list">
+            <div>
+              <dt>Enabled</dt>
+              <dd id="sync-enabled">Loading…</dd>
+            </div>
+            <div>
+              <dt>Tracked files</dt>
+              <dd id="sync-tracked-files">Loading…</dd>
+            </div>
+            <div>
+              <dt>Last sync</dt>
+              <dd id="sync-last-sync">Loading…</dd>
+            </div>
+            <div>
+              <dt>Total synced bytes</dt>
+              <dd id="sync-total-bytes">Loading…</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="card">
+          <h2>Schedule</h2>
+          <dl class="summary-list">
+            <div>
+              <dt>Enabled</dt>
+              <dd id="schedule-enabled">Loading…</dd>
+            </div>
+            <div>
+              <dt>Next run</dt>
+              <dd id="schedule-next-run">Loading…</dd>
+            </div>
+            <div>
+              <dt>Last outcome</dt>
+              <dd id="schedule-last-outcome">Loading…</dd>
+            </div>
+            <div>
+              <dt>Last summary</dt>
+              <dd id="schedule-last-summary">Loading…</dd>
+            </div>
+          </dl>
+        </section>
+      </section>
+
+      <section class="card">
+        <div class="toolbar-row">
+          <div>
+            <h2>Sync control</h2>
+            <p id="sync-mode-hint" class="muted">Loading sync controls…</p>
+          </div>
+          <div class="toolbar-actions">
+            <label class="checkbox-field">
+              <input id="sync-dry-run" type="checkbox" checked />
+              <span>Dry run</span>
+            </label>
+            <button id="refresh-button" type="button">Refresh status</button>
+            <button id="sync-button" type="button">Sync now</button>
+          </div>
+        </div>
+        <p id="sync-status" class="status-message muted">No sync has been triggered from this page yet.</p>
+      </section>
+
+      <section class="card">
+        <div class="panel-header">
+          <div>
+            <h2>Live log</h2>
+            <p id="live-log-meta" class="muted">Live tail of sync progress, schedule runs, and rules updates.</p>
+          </div>
+        </div>
+        <pre id="live-log-output">Waiting for sync events…</pre>
+      </section>
+    </main>
+  </body>
+</html>

@@ -30,7 +30,12 @@ export async function serveStaticFile(
     return false;
   }
 
-  const requestedPath = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+  const requestedPath =
+    pathname === '/'
+      ? fs.existsSync(path.join(publicRoot, 'status.html'))
+        ? 'status.html'
+        : 'index.html'
+      : pathname.replace(/^\//, '');
   const extension = path.extname(requestedPath).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(extension)) {
     return false;
