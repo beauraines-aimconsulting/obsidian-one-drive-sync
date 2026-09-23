@@ -2,6 +2,9 @@ import { fetchJson, sendJson, withStoredToken } from './api.js';
 
 const state = {
   status: null,
+  authStatus: null,
+  authDeviceCode: null,
+  authPollTimer: null,
   currentRunId: null,
   currentRun: null,
   logs: [],
@@ -24,6 +27,15 @@ const elements = {
   syncDryRun: document.getElementById('sync-dry-run'),
   syncStatus: document.getElementById('sync-status'),
   syncModeHint: document.getElementById('sync-mode-hint'),
+  authCachedToken: document.getElementById('auth-cached-token'),
+  authTokenExpiry: document.getElementById('auth-token-expiry'),
+  authFlowState: document.getElementById('auth-flow-state'),
+  authStatus: document.getElementById('auth-status'),
+  authUserCode: document.getElementById('auth-user-code'),
+  authVerificationLink: document.getElementById('auth-verification-link'),
+  authDeviceCodePanel: document.getElementById('auth-device-code-panel'),
+  authStartButton: document.getElementById('auth-start-button'),
+  authLogoutButton: document.getElementById('auth-logout-button'),
   liveLogOutput: document.getElementById('live-log-output'),
   liveLogMeta: document.getElementById('live-log-meta'),
   refreshButton: document.getElementById('refresh-button'),
@@ -57,6 +69,12 @@ function setStatusMessage(message, className = 'muted') {
   elements.syncStatus.textContent = message;
 }
 
+function setAuthMessage(message, className = 'muted') {
+  if (!elements.authStatus) return;
+  elements.authStatus.className = `status-message ${className}`.trim();
+  elements.authStatus.textContent = message;
+}
+
 function appendLogLine(line) {
   if (!line) return;
   state.logs.push(line);
@@ -75,6 +93,105 @@ function renderLogs() {
       ? `${run.status.toUpperCase()} • ${run.dryRun ? 'dry run' : 'live sync'}${run.force ? ' • force' : ''}`
       : 'Live tail of sync progress, schedule runs, and rules updates.';
   }
+}
+
+function describeFlowState(authStatus) {
+  switch (authStatus?.flowState) {
+    case 'pending':
+      return 'Waiting for Microsoft sign-in';
+    case 'succeeded':
+      return 'Completed';
+    case 'failed':
+      return 'Failed';
+    case 'timed_out':
+      return 'Timed out';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return 'Idle';
+  }
+}
+
+function clearAuthDeviceCode() {
+  state.authDeviceCode = null;
+  if (elements.authDeviceCodePanel) {
+    elements.authDeviceCodePanel.classList.add('hidden');
+  }
+  if (elements.authUserCode) {
+    elements.authUserCode.textContent = '';
+  }
+  if (elements.authVerificationLink) {
+    elements.authVerificationLink.removeAttribute('href');
+    elements.authVerificationLink.textContent = 'the Microsoft verification page';
+  }
+}
+
+function renderAuthStatus() {
+  const authStatus = state.authStatus;
+  if (!authStatus) return;
+
+  renderValue(elements.authCachedToken, authStatus.hasCachedToken ? 'Present' : 'Missing');
+  renderValue(elements.authTokenExpiry, formatDateTime(authStatus.tokenExpiresAt));
+  renderValue(elements.authFlowState, describeFlowState(authStatus));
+
+  if (state.authDeviceCode && authStatus.flowPending) {
+    if (elements.authDeviceCodePanel) {
+      elements.authDeviceCodePanel.classList.remove('hidden');
+    }
+    if (elements.authUserCode) {
+      elements.authUserCode.textContent = state.authDeviceCode.userCode;
+    }
+    if (elements.authVerificationLink) {
+      elements.authVerificationLink.href = state.authDeviceCode.verificationUri;
+      elements.authVerificationLink.textContent = state.authDeviceCode.verificationUri;
+    }
+    setAuthMessage(
+      `Complete sign-in before ${formatDateTime(state.authDeviceCode.expiresAt)}.`,
+      'status-warning'
+    );
+  } else {
+    clearAuthDeviceCode();
+    if (authStatus.flowState === 'succeeded') {
+      setAuthMessage('Authentication restored. Scheduled sync failures have been reset.', 'status-success');
+    } else if (authStatus.flowState === 'failed') {
+      setAuthMessage('Re-authentication failed. Start a new device-code flow and try again.', 'status-error');
+    } else if (authStatus.flowState === 'timed_out') {
+      setAuthMessage('The device code expired before sign-in completed. Start a new flow.', 'status-error');
+    } else if (authStatus.flowState === 'cancelled') {
+      setAuthMessage('Authentication flow cancelled and cached tokens cleared.', 'status-warning');
+    } else {
+      setAuthMessage('No browser re-authentication is in progress.');
+    }
+  }
+
+  if (elements.authStartButton) {
+    elements.authStartButton.disabled = Boolean(authStatus.flowPending) || Boolean(state.status?.readOnly);
+  }
+  if (elements.authLogoutButton) {
+    elements.authLogoutButton.disabled = Boolean(state.status?.readOnly);
+  }
+}
+
+function scheduleAuthPoll() {
+  if (state.authPollTimer) {
+    window.clearTimeout(state.authPollTimer);
+  }
+
+  if (!state.authStatus?.flowPending) {
+    state.authPollTimer = null;
+    return;
+  }
+
+  state.authPollTimer = window.setTimeout(async () => {
+    try {
+      await fetchAuthStatus();
+      if (!state.authStatus?.flowPending) {
+        await fetchStatus();
+      }
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : String(error), 'status-error');
+    }
+  }, 2000);
 }
 
 function renderStatus() {
@@ -138,6 +255,17 @@ async function fetchStatus() {
   }
   state.status = payload;
   renderStatus();
+  renderAuthStatus();
+}
+
+async function fetchAuthStatus() {
+  const { response, payload } = await fetchJson('/api/auth/status');
+  if (!response.ok) {
+    throw new Error(payload?.error ?? `Request failed with ${response.status}`);
+  }
+  state.authStatus = payload;
+  renderAuthStatus();
+  scheduleAuthPoll();
 }
 
 async function fetchRun(runId) {
@@ -197,6 +325,46 @@ async function triggerSync() {
   }
 }
 
+async function startAuthenticationFlow() {
+  try {
+    if (elements.authStartButton) elements.authStartButton.disabled = true;
+    setAuthMessage('Starting device-code sign-in…', 'status-warning');
+    const { response, payload } = await sendJson('/api/auth/device-code', 'POST', {});
+    if (!response.ok) {
+      setAuthMessage(payload?.error ?? `Request failed with ${response.status}`, 'status-error');
+      await fetchAuthStatus().catch(() => undefined);
+      return;
+    }
+
+    state.authDeviceCode = payload;
+    await fetchAuthStatus();
+  } catch (error) {
+    setAuthMessage(error instanceof Error ? error.message : String(error), 'status-error');
+  } finally {
+    renderAuthStatus();
+  }
+}
+
+async function logoutAuthentication() {
+  try {
+    if (elements.authLogoutButton) elements.authLogoutButton.disabled = true;
+    setAuthMessage('Clearing cached tokens…', 'status-warning');
+    const { response, payload } = await sendJson('/api/auth/logout', 'POST', {});
+    if (!response.ok) {
+      setAuthMessage(payload?.error ?? `Request failed with ${response.status}`, 'status-error');
+      return;
+    }
+
+    state.authStatus = payload;
+    clearAuthDeviceCode();
+    renderAuthStatus();
+  } catch (error) {
+    setAuthMessage(error instanceof Error ? error.message : String(error), 'status-error');
+  } finally {
+    renderAuthStatus();
+  }
+}
+
 function connectEvents() {
   const url = withStoredToken('/api/events');
   const source = new EventSource(url);
@@ -248,7 +416,15 @@ function bindEvents() {
     renderStatus();
   });
   elements.refreshButton?.addEventListener('click', () => {
-    void fetchStatus();
+    void Promise.all([fetchStatus(), fetchAuthStatus().catch((error) => {
+      setAuthMessage(error instanceof Error ? error.message : String(error), 'status-error');
+    })]);
+  });
+  elements.authStartButton?.addEventListener('click', () => {
+    void startAuthenticationFlow();
+  });
+  elements.authLogoutButton?.addEventListener('click', () => {
+    void logoutAuthentication();
   });
 }
 
@@ -256,6 +432,11 @@ async function initialize() {
   bindEvents();
   try {
     await fetchStatus();
+    try {
+      await fetchAuthStatus();
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : String(error), 'status-error');
+    }
     connectEvents();
     renderLogs();
   } catch (error) {

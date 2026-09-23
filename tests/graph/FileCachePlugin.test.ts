@@ -112,4 +112,28 @@ describe('FileCachePlugin', () => {
     const mode = stats.mode & 0o777;
     expect(mode).toBe(0o600);
   });
+
+  it('should report the latest access-token expiry without exposing token material', () => {
+    const plugin = new FileCachePlugin(testDir);
+    fs.writeFileSync(
+      plugin.getCachePath(),
+      JSON.stringify({
+        AccessToken: {
+          tokenA: {
+            secret: 'token-a',
+            expires_on: '1780000000',
+          },
+          tokenB: {
+            secret: 'token-b',
+            expires_on: '1790000000',
+          },
+        },
+      })
+    );
+
+    expect(plugin.getCachedTokenStatus()).toEqual({
+      hasCachedToken: true,
+      expiresAt: new Date(1790000000 * 1000).toISOString(),
+    });
+  });
 });

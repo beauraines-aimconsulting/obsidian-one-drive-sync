@@ -14,6 +14,30 @@ export interface TokenResult {
   scopes: string[];
 }
 
+export type DeviceCodeFlowState =
+  | 'idle'
+  | 'pending'
+  | 'succeeded'
+  | 'failed'
+  | 'timed_out'
+  | 'cancelled';
+
+export interface DeviceCodeFlowStartResult {
+  userCode: string;
+  verificationUri: string;
+  expiresAt: string;
+}
+
+export interface AuthStatusSnapshot {
+  hasCachedToken: boolean;
+  tokenExpiresAt: string | null;
+  flowState: DeviceCodeFlowState;
+  flowPending: boolean;
+  flowStartedAt: string | null;
+  flowExpiresAt: string | null;
+  flowCompletedAt: string | null;
+}
+
 export interface ProbeResult {
   success: boolean;
   endpoint: string;
