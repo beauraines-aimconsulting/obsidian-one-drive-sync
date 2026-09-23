@@ -10,7 +10,12 @@ import { postRulesTest } from './api/ruleTest.js';
 import { getStatus } from './api/status.js';
 import { getEvents } from './api/events.js';
 import { getSyncRun, postSync } from './api/sync.js';
-import { applyApiSecurity, isLoopbackBindAddress, sendApiError } from './security.js';
+import {
+  applyApiSecurity,
+  isAuthorizedRequest,
+  isLoopbackBindAddress,
+  sendApiError,
+} from './security.js';
 import { serveStaticFile } from './staticFiles.js';
 import type { RouteContext, WebServerOptions } from './types.js';
 
@@ -90,6 +95,17 @@ export class WebServer {
     response: ServerResponse
   ): Promise<void> {
     const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
+    if (this.requiresPageToken(requestUrl.pathname)) {
+      if (!isAuthorizedRequest(request, requestUrl, this.options.token)) {
+        response.writeHead(401, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        response.end('Unauthorized');
+        return;
+      }
+    }
+
     const security = await applyApiSecurity(request, response, {
       pathname: requestUrl.pathname,
       requestUrl,
@@ -119,5 +135,9 @@ export class WebServer {
     if (!served) {
       response.writeHead(404).end();
     }
+  }
+
+  private requiresPageToken(pathname: string): boolean {
+    return Boolean(this.options.token) && (pathname === '/' || pathname.endsWith('.html'));
   }
 }

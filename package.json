@@ -13,6 +13,7 @@
     "dev": "node --loader ts-node/esm src/main.ts",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "npm run build && playwright test",
     "test:ui": "vitest --ui",
     "coverage": "vitest run --coverage",
     "lint": "eslint src",
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^8.54.0",
+    "@playwright/test": "^1.63.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.10.0",
     "@types/picomatch": "^4.0.3",

@@ -61,7 +61,10 @@ export function constantTimeTokenMatch(expectedToken: string, providedToken: str
   return timingSafeEqual(expectedHash, providedHash);
 }
 
-function readBearerToken(request: IncomingMessage, requestUrl: URL): string | undefined {
+export function readAccessToken(
+  request: IncomingMessage,
+  requestUrl: URL
+): string | undefined {
   const header = request.headers.authorization;
   if (header) {
     const [scheme, value] = header.split(/\s+/, 2);
@@ -71,6 +74,17 @@ function readBearerToken(request: IncomingMessage, requestUrl: URL): string | un
   }
 
   return requestUrl.searchParams.get('token') ?? undefined;
+}
+
+export function isAuthorizedRequest(
+  request: IncomingMessage,
+  requestUrl: URL,
+  token: string | undefined
+): boolean {
+  if (!token) return true;
+
+  const providedToken = readAccessToken(request, requestUrl);
+  return Boolean(providedToken && constantTimeTokenMatch(token, providedToken));
 }
 
 function isAllowedOrigin(request: IncomingMessage): boolean {
@@ -125,8 +139,7 @@ export async function applyApiSecurity(
   response.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (options.token) {
-    const providedToken = readBearerToken(request, options.requestUrl);
-    if (!providedToken || !constantTimeTokenMatch(options.token, providedToken)) {
+    if (!isAuthorizedRequest(request, options.requestUrl, options.token)) {
       sendApiError(response, 401, 'Unauthorized');
       return null;
     }

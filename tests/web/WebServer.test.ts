@@ -198,6 +198,22 @@ describe('WebServer', () => {
     expect(valid.status).toBe(200);
   });
 
+  it('rejects unauthenticated HTML page loads when a token is configured', async () => {
+    const server = await startWebServer({ token: 's3cret-token' });
+    const baseUrl = `http://127.0.0.1:${server.getPort()}`;
+
+    const [missing, invalid, valid] = await Promise.all([
+      fetch(`${baseUrl}/status.html`),
+      fetch(`${baseUrl}/status.html?token=wrong-token`),
+      fetch(`${baseUrl}/status.html?token=s3cret-token`),
+    ]);
+
+    expect(missing.status).toBe(401);
+    expect(invalid.status).toBe(401);
+    expect(valid.status).toBe(200);
+    expect(valid.headers.get('content-type')).toContain('text/html');
+  });
+
   it('rejects cross-origin mutating requests', async () => {
     const server = await startWebServer();
     const response = await fetch(`http://127.0.0.1:${server.getPort()}/api/unknown`, {
