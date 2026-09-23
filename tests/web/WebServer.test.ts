@@ -261,17 +261,22 @@ describe('WebServer', () => {
   it('serves the static status shell and browser assets', async () => {
     const server = await startWebServer();
 
-    const [indexResponse, appResponse] = await Promise.all([
+    const [indexResponse, appResponse, rulesResponse] = await Promise.all([
       fetch(`http://127.0.0.1:${server.getPort()}/`),
       fetch(`http://127.0.0.1:${server.getPort()}/app.js`),
+      fetch(`http://127.0.0.1:${server.getPort()}/rules.html`),
     ]);
 
     expect(indexResponse.status).toBe(200);
     expect(indexResponse.headers.get('content-type')).toContain('text/html');
-    expect(await indexResponse.text()).toContain('Web server skeleton status page');
+    expect(await indexResponse.text()).toContain('Local admin UI');
 
     expect(appResponse.status).toBe(200);
     expect(appResponse.headers.get('content-type')).toContain('text/javascript');
-    expect(await appResponse.text()).toContain("fetch('/api/status'");
+    expect(await appResponse.text()).toContain("fetchJson('/api/status'");
+
+    expect(rulesResponse.status).toBe(200);
+    expect(rulesResponse.headers.get('content-type')).toContain('text/html');
+    expect(await rulesResponse.text()).toContain('Rules editor');
   });
 });

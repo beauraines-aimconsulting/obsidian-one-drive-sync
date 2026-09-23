@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Obsidian OneDrive Sync Rules</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/rules.js"></script>
+  </head>
+  <body>
+    <main class="page page-wide">
+      <header class="page-header">
+        <div>
+          <h1>Rules editor</h1>
+          <p class="subtitle">Edit publication rules with validation, diff, and hot reload.</p>
+        </div>
+        <nav class="nav-links" aria-label="Primary">
+          <a class="nav-link" href="/">Status</a>
+          <a class="nav-link nav-link-current" href="/rules.html">Rules</a>
+        </nav>
+      </header>
+
+      <section id="rules-banner" class="notice hidden" aria-live="polite"></section>
+
+      <section class="toolbar card">
+        <div class="toolbar-row">
+          <div>
+            <h2>Document</h2>
+            <p id="rules-meta" class="muted">Loading…</p>
+          </div>
+          <div class="toolbar-actions">
+            <button id="reload-button" type="button">Reload</button>
+            <button id="migrate-button" type="button" class="hidden">Migrate to v2</button>
+            <button id="save-button" type="button" disabled>Save rules</button>
+          </div>
+        </div>
+        <p id="save-status" class="status-message muted"></p>
+      </section>
+
+      <section class="grid grid-two">
+        <section class="card">
+          <div class="tabs" role="tablist" aria-label="Rules editor tabs">
+            <button id="tab-form" class="tab-button tab-button-active" type="button" role="tab" aria-selected="true">
+              Form
+            </button>
+            <button id="tab-raw" class="tab-button" type="button" role="tab" aria-selected="false">
+              Raw JSON
+            </button>
+          </div>
+
+          <div id="form-panel" class="tab-panel" role="tabpanel">
+            <div class="panel-header">
+              <div>
+                <h3>Rule definitions</h3>
+                <p class="muted">Edit the v2 rule definitions and match tree.</p>
+              </div>
+              <button id="add-definition-button" type="button">Add definition</button>
+            </div>
+            <div id="form-disabled-message" class="notice hidden"></div>
+            <div id="form-editor"></div>
+          </div>
+
+          <div id="raw-panel" class="tab-panel hidden" role="tabpanel">
+            <label class="field-block" for="raw-editor">
+              <span class="field-label">rules.json</span>
+              <textarea id="raw-editor" class="code-editor" spellcheck="false"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="stack">
+          <section class="card">
+            <h3>Validation</h3>
+            <div id="validation-output" class="stack stack-tight"></div>
+          </section>
+
+          <section class="card">
+            <h3>Pending diff</h3>
+            <pre id="diff-output">No pending changes.</pre>
+          </section>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
