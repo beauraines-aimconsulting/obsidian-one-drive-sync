@@ -51,7 +51,7 @@ export const getRules: RouteHandler = async (_request, response, context) => {
   try {
     const state = await readRulesFile(context.options.rulesConfigPath);
     response.setHeader('ETag', state.etag);
-    sendApiJson(response, 200, toRulesResponseBody(state));
+    sendApiJson(response, 200, toRulesResponse(state, context.options.readOnly));
   } catch (error) {
     sendApiJson(response, 500, {
       error: error instanceof Error ? error.message : String(error),
@@ -151,7 +151,7 @@ export const putRules: RouteHandler = async (request, response, context) => {
       timestamp: new Date().toISOString(),
       etag: result.state.etag,
     });
-    sendApiJson(response, 200, toRulesResponseBody(result.state));
+    sendApiJson(response, 200, toRulesResponse(result.state, context.options.readOnly));
   } catch (error) {
     sendApiJson(response, 500, {
       error: error instanceof Error ? error.message : String(error),
@@ -190,6 +190,13 @@ function toRulesResponseBody(state: RulesReadResult) {
     version: state.validation.version,
     needsMigration: state.validation.version === 1,
     warnings: state.validation.warnings,
+  };
+}
+
+function toRulesResponse(state: RulesReadResult, readOnly: boolean) {
+  return {
+    ...toRulesResponseBody(state),
+    readOnly,
   };
 }
 

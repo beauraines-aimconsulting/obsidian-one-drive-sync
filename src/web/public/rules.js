@@ -35,6 +35,7 @@ const state = {
   currentText: '',
   currentDocument: null,
   loading: true,
+  readOnly: false,
   saving: false,
   validating: false,
   validation: {
@@ -302,6 +303,7 @@ function buildValidationState(payload) {
 
 function setLoadedRules(payload) {
   state.loading = false;
+  state.readOnly = Boolean(payload.readOnly);
   state.saving = false;
   state.validating = false;
   state.etag = payload.etag;
@@ -340,6 +342,12 @@ function renderBanner() {
     return;
   }
 
+  if (state.readOnly) {
+    elements.banner.textContent = 'Read-only mode is enabled. Review rules here, but use the CLI or restart without WEB_UI_READONLY to save changes.';
+    elements.banner.className = 'notice notice-warning';
+    return;
+  }
+
   if (state.validation.needsMigration) {
     elements.banner.textContent = 'This file still uses the legacy v1 schema. Migrate your working copy to rulesVersion 2 before saving.';
     elements.banner.className = 'notice notice-warning';
@@ -371,16 +379,21 @@ function renderMeta() {
 
   elements.saveButton.disabled =
     state.loading ||
+    state.readOnly ||
     state.saving ||
+    state.validating ||
     !dirty ||
     !state.validation.valid ||
     state.validation.needsMigration;
   elements.reloadButton.disabled = state.loading || state.saving;
-  elements.addDefinitionButton.disabled = state.loading || state.validation.needsMigration;
+  elements.addDefinitionButton.disabled =
+    state.loading || state.readOnly || state.validation.needsMigration;
   elements.migrateButton.classList.toggle(
     'hidden',
     !state.validation.needsMigration || !state.validation.migratedDocument
   );
+  elements.migrateButton.disabled = state.loading || state.readOnly;
+  elements.rawEditor.disabled = state.readOnly;
   elements.saveStatus.textContent = state.saveMessage;
   elements.saveStatus.className =
     state.saveMessage && state.validation.valid ? 'status-message status-success' : 'status-message muted';
@@ -483,6 +496,11 @@ function matchingErrors(prefix) {
 function renderForm() {
   elements.formEditor.replaceChildren();
 
+  if (state.readOnly) {
+    elements.formDisabledMessage.textContent = 'Read-only mode is enabled. Rule edits are disabled.';
+    elements.formDisabledMessage.className = 'notice notice-warning';
+  }
+
   if (state.validation.needsMigration) {
     elements.formDisabledMessage.textContent = 'The form editor only saves rulesVersion 2 documents. Use “Migrate to v2” to create an editable working copy.';
     elements.formDisabledMessage.className = 'notice notice-warning';
@@ -495,8 +513,10 @@ function renderForm() {
     return;
   }
 
-  elements.formDisabledMessage.textContent = '';
-  elements.formDisabledMessage.className = 'notice hidden';
+  if (!state.readOnly) {
+    elements.formDisabledMessage.textContent = '';
+    elements.formDisabledMessage.className = 'notice hidden';
+  }
 
   const document = state.currentDocument;
   ensureRulesSection(document);
@@ -513,6 +533,7 @@ function renderForm() {
   }
 
   elements.formEditor.append(renderMatchEditor(document.rules.match ?? { all: [] }));
+  applyReadOnlyControls();
 }
 
 function renderDefinitionCard(name, definition) {
@@ -1081,6 +1102,15 @@ function renderMatchEditor(matchNode) {
     })
   );
   return card;
+}
+
+function applyReadOnlyControls() {
+  const controls = document.querySelectorAll(
+    '#form-panel input, #form-panel select, #form-panel textarea, #form-panel button, #raw-panel textarea'
+  );
+  for (const control of controls) {
+    control.disabled = state.readOnly;
+  }
 }
 
 function assignOptionalString(target, key, value) {

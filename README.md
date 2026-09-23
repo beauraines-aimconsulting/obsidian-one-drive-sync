@@ -149,7 +149,7 @@ Configuration is loaded in this order:
 | `WEB_UI_ENABLED` | no | Set to `true` to serve the local admin UI and `/healthz` from the same HTTP server |
 | `WEB_PORT` | no | Port for the web UI when enabled; defaults to `8080` |
 | `WEB_BIND_ADDRESS` | no | Bind address for the web UI; defaults to `127.0.0.1` |
-| `WEB_UI_TOKEN` | no | Optional bearer token required for `/api/*` when the web UI is enabled |
+| `WEB_UI_TOKEN` | no | Optional bearer token required for the HTML admin pages and `/api/*` when the web UI is enabled |
 | `WEB_UI_READONLY` | no | Set to `true` to disable mutating UI/API actions while still serving status and browsing pages |
 | `SYNC_SCHEDULE` | no | Interval between full syncs, e.g. `15m`, `1h`, `1d`. Empty or unset means no schedule |
 | `SYNC_SCHEDULE_RUN_ON_START` | no | Run once at startup instead of waiting a full interval; defaults to `true` |
@@ -883,6 +883,21 @@ The checked-in Compose file also mounts the rules config as read-only:
 That is safe for browsing and testing rules, but saving from the UI will fail until you drop the
 `:ro` suffix on that mount.
 
+### Local browser tests
+
+Playwright browser coverage is kept out of `npm test`; run it explicitly:
+
+```bash
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+If your local environment cannot install OS dependencies through Playwright, `npx playwright
+install chromium` is enough on machines that already have the required system libraries.
+
+The e2e suite launches the web UI against a generated fixture vault and fixture `rules.json`
+under `tests/e2e/.runtime/`, so it never points at your real Obsidian vault.
+
 ## Docker deployment
 
 The image is a multi-stage build: TypeScript is compiled in a build stage, and the runtime
@@ -927,7 +942,7 @@ set credentials and behavior:
 | `WEB_UI_ENABLED` | no | `false` | Enable the web UI instead of the standalone health server |
 | `WEB_PORT` | no | `8080` | Web UI port inside the container |
 | `WEB_BIND_ADDRESS` | no | `0.0.0.0` | Bind address used when the web UI is enabled |
-| `WEB_UI_TOKEN` | no | unset | Optional bearer token protecting `/api/*` when the web UI is enabled |
+| `WEB_UI_TOKEN` | no | unset | Optional bearer token protecting the HTML admin pages and `/api/*` when the web UI is enabled |
 | `WEB_UI_READONLY` | no | `false` | Disable mutating web actions while still serving the UI |
 | `SYNC_SCHEDULE` | no | unset | Interval between full syncs, e.g. `1h`. Empty means no schedule |
 | `SYNC_SCHEDULE_RUN_ON_START` | no | `true` | Sync once at startup rather than waiting an interval |
@@ -1087,6 +1102,8 @@ exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-eval
 - `npm run build` — compile TypeScript to `dist/`
 - `npm run dev` — run the CLI with `ts-node`
 - `npm test` — run Vitest
+- `npm run test:integration` — run the integration Vitest suite
+- `npm run test:e2e` — run Chromium Playwright specs against the generated fixture vault
 - `npm run lint` — run ESLint
 - `npm run lint:fix` — auto-fix lint issues
 - `npm run format` — format source files
