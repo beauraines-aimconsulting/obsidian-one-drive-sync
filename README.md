@@ -146,6 +146,11 @@ Configuration is loaded in this order:
 | `HEALTH_PORT` | no | Port for the health endpoint in watch mode; defaults to `8080` |
 | `WATCH_USE_POLLING` | no | Set to `true` to poll for changes instead of using native filesystem events. Required for bind-mounted vaults in Docker on macOS/Windows |
 | `WATCH_POLL_INTERVAL` | no | Poll interval in milliseconds when polling is enabled; defaults to `1000` |
+| `WEB_UI_ENABLED` | no | Set to `true` to serve the local admin UI and `/healthz` from the same HTTP server |
+| `WEB_PORT` | no | Port for the web UI when enabled; defaults to `8080` |
+| `WEB_BIND_ADDRESS` | no | Bind address for the web UI; defaults to `127.0.0.1` |
+| `WEB_UI_TOKEN` | no | Optional bearer token required for the HTML admin pages and `/api/*` when the web UI is enabled |
+| `WEB_UI_READONLY` | no | Set to `true` to disable mutating UI/API actions while still serving status and browsing pages |
 | `SYNC_SCHEDULE` | no | Interval between full syncs, e.g. `15m`, `1h`, `1d`. Empty or unset means no schedule |
 | `SYNC_SCHEDULE_RUN_ON_START` | no | Run once at startup instead of waiting a full interval; defaults to `true` |
 | `SYNC_SCHEDULE_SKIP_IF_RUNNING` | no | Skip a tick that lands while the previous run is still going; defaults to `true` |
@@ -161,6 +166,10 @@ Configuration is loaded in this order:
 - `healthPort`: `8080`
 - `usePolling`: `false`
 - `pollInterval`: `1000`
+- `webEnabled`: `false`
+- `webPort`: `8080`
+- `webBindAddress`: `127.0.0.1`
+- `webUiReadOnly`: `false`
 - `ignorePatterns`: `.git/**`, `.obsidian/**`, `.trash/**`, `node_modules/**`, `Templates/**`,
   `.DS_Store`
 - `extraIgnorePatterns`: empty
@@ -817,9 +826,83 @@ For Docker, publish the port you want on the host:
 docker run -e HEALTH_PORT=8081 -p 8081:8081 obsidian-one-drive-sync
 ```
 
-With Compose, set `HEALTH_PORT` in your `.env` file. It changes the **host** port only; the
-container keeps listening on `8080`, so `HEALTH_PORT=8081` makes the endpoint available at
-`http://localhost:8081/healthz`.
+With Compose, the checked-in web profile publishes `127.0.0.1:${HOST_WEB_PORT:-8080}:8080`, so
+set `HOST_WEB_PORT` in your `.env` file if you need a different host port.
+
+## Web UI
+
+The web UI serves `/status.html`, `/healthz`, and the `/api/*` endpoints from one HTTP server.
+It is off by default unless you pass `--web` or set `WEB_UI_ENABLED=true`.
+
+### Local use
+
+Run the watcher, sync engine, and web UI together:
+
+```bash
+WEB_UI_ENABLED=true npm start -- --sync --watch
+```
+
+The UI listens on `127.0.0.1:8080` by default. If you need to bind beyond loopback, also set a
+token and supply it in the URL once:
+
+```bash
+WEB_UI_ENABLED=true \
+WEB_BIND_ADDRESS=0.0.0.0 \
+WEB_UI_TOKEN=choose-a-random-secret \
+npm start -- --sync --watch
+```
+
+Then open `http://127.0.0.1:8080/status.html?token=choose-a-random-secret`. The page stores the
+token in `sessionStorage`, strips it from the address bar, and reuses it for the UI API and live
+event stream.
+
+Set `WEB_UI_READONLY=true` when you want status, rules browsing, and file browsing without any
+mutating actions.
+
+When `--sync` runs without `--schedule`, the initial full sync now starts in the background: the
+web server and UI are available immediately, and progress streams over SSE (the same feed used for
+web-triggered and scheduled runs) instead of the terminal blocking until the sync finishes. This
+only applies when the web UI is enabled; without it, `--sync` still blocks on the initial sync as
+before.
+
+### Docker and Compose
+
+The runtime image includes web defaults (`WEB_PORT=8080`, `WEB_BIND_ADDRESS=0.0.0.0`) but leaves
+`WEB_UI_ENABLED=false` so a plain `docker run` keeps the old health-only behavior unless you opt
+in.
+
+`compose.yaml` now enables the web UI and binds it to `127.0.0.1:8080` by default:
+
+```yaml
+ports:
+  - "127.0.0.1:8080:8080"
+```
+
+That loopback binding is deliberate. If you change it to `0.0.0.0`, set `WEB_UI_TOKEN` as well.
+
+The checked-in Compose file also mounts the rules config as read-only:
+
+```yaml
+- ${HOST_RULES_CONFIG_PATH}:/config/rules.json:ro
+```
+
+That is safe for browsing and testing rules, but saving from the UI will fail until you drop the
+`:ro` suffix on that mount.
+
+### Local browser tests
+
+Playwright browser coverage is kept out of `npm test`; run it explicitly:
+
+```bash
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+If your local environment cannot install OS dependencies through Playwright, `npx playwright
+install chromium` is enough on machines that already have the required system libraries.
+
+The e2e suite launches the web UI against a generated fixture vault and fixture `rules.json`
+under `tests/e2e/.runtime/`, so it never points at your real Obsidian vault.
 
 ## Docker deployment
 
@@ -862,6 +945,11 @@ set credentials and behavior:
 | `WATCH_USE_POLLING` | for watch mode on macOS/Windows | `false` | Poll instead of relying on native filesystem events |
 | `WATCH_POLL_INTERVAL` | no | `1000` | Poll interval in milliseconds |
 | `HEALTH_PORT` | no | `8080` | Health endpoint port inside the container |
+| `WEB_UI_ENABLED` | no | `false` | Enable the web UI instead of the standalone health server |
+| `WEB_PORT` | no | `8080` | Web UI port inside the container |
+| `WEB_BIND_ADDRESS` | no | `0.0.0.0` | Bind address used when the web UI is enabled |
+| `WEB_UI_TOKEN` | no | unset | Optional bearer token protecting the HTML admin pages and `/api/*` when the web UI is enabled |
+| `WEB_UI_READONLY` | no | `false` | Disable mutating web actions while still serving the UI |
 | `SYNC_SCHEDULE` | no | unset | Interval between full syncs, e.g. `1h`. Empty means no schedule |
 | `SYNC_SCHEDULE_RUN_ON_START` | no | `true` | Sync once at startup rather than waiting an interval |
 | `SYNC_SCHEDULE_SKIP_IF_RUNNING` | no | `true` | Skip a tick that lands while a run is still going |
@@ -923,11 +1011,15 @@ fails fast if any of them are missing. Then:
 ```bash
 docker compose up --build
 curl http://localhost:8080/healthz
+open http://localhost:8080/status.html
 docker compose down
 ```
 
 Compose declares the `sync-state` named volume for you, so the token cache and sync state
 persist across `up`/`down` cycles.
+
+Because the default mapping is `127.0.0.1:8080:8080`, the UI is reachable only from the local
+machine unless you edit the port mapping. If you do expose it more broadly, set `WEB_UI_TOKEN`.
 
 #### Vaults with symlinked folders
 
@@ -1003,8 +1095,8 @@ exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-eval
 - **Config file not applied**: the rules file must be mounted at `/config/rules.json` and
   contain a top-level `config` object. `HOST_RULES_CONFIG_PATH` must point at the file itself,
   not its parent directory.
-- **Health port already in use**: set `HEALTH_PORT` in `.env` to change the published host port;
-  the container keeps listening on `8080`.
+- **Health/Web UI port already in use**: set `HOST_WEB_PORT` in `.env` to change the published
+  Compose port, or `HEALTH_PORT` / `WEB_PORT` when running the process directly.
 - **Re-prompted for a device code every run**: the `sync-state` volume is missing, so the token
   cache is discarded with the container. Clear tokens deliberately with `node dist/main.js
   --logout`.
@@ -1016,6 +1108,8 @@ exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-eval
 - `npm run build` — compile TypeScript to `dist/`
 - `npm run dev` — run the CLI with `ts-node`
 - `npm test` — run Vitest
+- `npm run test:integration` — run the integration Vitest suite
+- `npm run test:e2e` — run Chromium Playwright specs against the generated fixture vault
 - `npm run lint` — run ESLint
 - `npm run lint:fix` — auto-fix lint issues
 - `npm run format` — format source files

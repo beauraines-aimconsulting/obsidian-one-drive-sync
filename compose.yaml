@@ -8,7 +8,6 @@ services:
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:?Set GRAPH_CLIENT_ID in .env}
       GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-common}
       ONEDRIVE_FOLDER: ${ONEDRIVE_FOLDER:-ObsidianPublished}
-      HEALTH_PORT: 8080
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEBOUNCE_DELAY: ${DEBOUNCE_DELAY:-300}
       WATCH_USE_POLLING: ${WATCH_USE_POLLING:-true}
@@ -17,13 +16,18 @@ services:
       SYNC_SCHEDULE_RUN_ON_START: ${SYNC_SCHEDULE_RUN_ON_START:-}
       SYNC_SCHEDULE_JITTER_MS: ${SYNC_SCHEDULE_JITTER_MS:-}
       SYNC_SCHEDULE_MAX_FAILURES: ${SYNC_SCHEDULE_MAX_FAILURES:-}
+      WEB_UI_ENABLED: ${WEB_UI_ENABLED:-true}
+      WEB_PORT: 8080
+      WEB_BIND_ADDRESS: 0.0.0.0
+      WEB_UI_READONLY: ${WEB_UI_READONLY:-false}
+      WEB_UI_TOKEN: ${WEB_UI_TOKEN:-}
       VAULT_PATH: ${CONTAINER_VAULT_PATH:-/vault}
     volumes:
       - ${HOST_MOUNT_PATH:-${HOST_VAULT_PATH:?Set HOST_VAULT_PATH in .env}}:${CONTAINER_MOUNT_PATH:-/vault}:ro
       - ${HOST_RULES_CONFIG_PATH:?Set HOST_RULES_CONFIG_PATH in .env}:/config/rules.json:ro
       - sync-state:/home/node/.obsidian-sync
     ports:
-      - "${HEALTH_PORT:-8080}:8080"
+      - "127.0.0.1:${HOST_WEB_PORT:-8080}:8080"
 
 volumes:
   sync-state:

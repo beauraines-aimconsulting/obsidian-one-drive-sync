@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Obsidian OneDrive Sync Rule Tester</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/test.js"></script>
+  </head>
+  <body>
+    <main class="page page-wide">
+      <header class="page-header">
+        <div>
+          <h1>Rule tester</h1>
+          <p class="subtitle">Preview how saved or pending rules evaluate a note before you save them.</p>
+        </div>
+        <nav class="nav-links" aria-label="Primary">
+          <a class="nav-link" href="/status.html">Status</a>
+          <a class="nav-link" href="/rules.html">Rules</a>
+          <a class="nav-link nav-link-current" href="/test.html">Rule tester</a>
+          <a class="nav-link" href="/files.html">Files</a>
+        </nav>
+      </header>
+
+      <section class="grid layout-columns">
+        <section class="card stack">
+          <div class="card-header">
+            <div>
+              <h2>Input</h2>
+              <p class="muted">Select a vault note or paste raw markdown. Optional rules JSON is evaluated in isolation.</p>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label class="field-block" for="file-search">
+              <span class="field-label">Find vault note</span>
+              <input id="file-search" class="text-input" type="search" placeholder="Search note path" />
+            </label>
+            <div class="field-block align-end">
+              <span class="field-label">Actions</span>
+              <div class="toolbar-actions">
+                <button id="search-files-button" type="button">Search</button>
+                <button id="load-selected-button" type="button">Load selected note</button>
+              </div>
+            </div>
+          </div>
+
+          <label class="field-block" for="file-select">
+            <span class="field-label">Vault note</span>
+            <select id="file-select" class="text-input" size="8"></select>
+          </label>
+
+          <label class="field-block" for="test-filepath">
+            <span class="field-label">Evaluation filepath</span>
+            <input id="test-filepath" class="text-input" type="text" placeholder="Notes/example.md" />
+            <span class="field-hint">Used for path-sensitive rules. If omitted, pasted content is evaluated as <code>Pasted.md</code>.</span>
+          </label>
+
+          <label class="field-block" for="content-editor">
+            <span class="field-label">Note content</span>
+            <textarea id="content-editor" class="code-editor" spellcheck="false" placeholder="Leave blank to evaluate the selected vault note directly."></textarea>
+          </label>
+
+          <label class="field-block" for="candidate-rules-editor">
+            <span class="field-label">Pending rules JSON (optional)</span>
+            <textarea id="candidate-rules-editor" class="code-editor code-editor-compact" spellcheck="false" placeholder='{"rulesVersion":2,"rules":{...}}'></textarea>
+          </label>
+
+          <div class="toolbar-actions">
+            <button id="run-test-button" type="button">Evaluate note</button>
+          </div>
+          <p id="test-status" class="status-message muted"></p>
+        </section>
+
+        <section class="stack">
+          <section class="card stack-tight">
+            <div class="card-header">
+              <h2>Decision</h2>
+            </div>
+            <div id="decision-summary" class="muted">Run a test to see the eligibility result.</div>
+            <div id="trace-output"></div>
+          </section>
+
+          <section class="card stack-tight">
+            <div class="card-header">
+              <h2>Raw result</h2>
+            </div>
+            <pre id="result-json">No result yet.</pre>
+          </section>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

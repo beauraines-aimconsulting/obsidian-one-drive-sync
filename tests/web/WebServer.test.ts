@@ -91,6 +91,7 @@ describe('WebServer', () => {
       readOnly: options.readOnly ?? false,
       vaultPath,
       rulesConfigPath,
+      ignorePatterns: [],
       publicationService: makePublicationService(vaultPath),
       ...(options.syncService ? { syncService: options.syncService } : {}),
       healthStatus: options.healthStatus ?? makeStatusProvider(),
@@ -197,6 +198,22 @@ describe('WebServer', () => {
     expect(valid.status).toBe(200);
   });
 
+  it('rejects unauthenticated HTML page loads when a token is configured', async () => {
+    const server = await startWebServer({ token: 's3cret-token' });
+    const baseUrl = `http://127.0.0.1:${server.getPort()}`;
+
+    const [missing, invalid, valid] = await Promise.all([
+      fetch(`${baseUrl}/status.html`),
+      fetch(`${baseUrl}/status.html?token=wrong-token`),
+      fetch(`${baseUrl}/status.html?token=s3cret-token`),
+    ]);
+
+    expect(missing.status).toBe(401);
+    expect(invalid.status).toBe(401);
+    expect(valid.status).toBe(200);
+    expect(valid.headers.get('content-type')).toContain('text/html');
+  });
+
   it('rejects cross-origin mutating requests', async () => {
     const server = await startWebServer();
     const response = await fetch(`http://127.0.0.1:${server.getPort()}/api/unknown`, {
@@ -261,17 +278,37 @@ describe('WebServer', () => {
   it('serves the static status shell and browser assets', async () => {
     const server = await startWebServer();
 
-    const [indexResponse, appResponse] = await Promise.all([
+    const [indexResponse, statusResponse, appResponse, rulesResponse, testResponse, filesResponse] = await Promise.all([
       fetch(`http://127.0.0.1:${server.getPort()}/`),
+      fetch(`http://127.0.0.1:${server.getPort()}/status.html`),
       fetch(`http://127.0.0.1:${server.getPort()}/app.js`),
+      fetch(`http://127.0.0.1:${server.getPort()}/rules.html`),
+      fetch(`http://127.0.0.1:${server.getPort()}/test.html`),
+      fetch(`http://127.0.0.1:${server.getPort()}/files.html`),
     ]);
 
     expect(indexResponse.status).toBe(200);
     expect(indexResponse.headers.get('content-type')).toContain('text/html');
-    expect(await indexResponse.text()).toContain('Web server skeleton status page');
+    expect(await indexResponse.text()).toContain('Sync control');
+
+    expect(statusResponse.status).toBe(200);
+    expect(statusResponse.headers.get('content-type')).toContain('text/html');
+    expect(await statusResponse.text()).toContain('live events');
 
     expect(appResponse.status).toBe(200);
     expect(appResponse.headers.get('content-type')).toContain('text/javascript');
-    expect(await appResponse.text()).toContain("fetch('/api/status'");
+    expect(await appResponse.text()).toContain('new EventSource');
+
+    expect(rulesResponse.status).toBe(200);
+    expect(rulesResponse.headers.get('content-type')).toContain('text/html');
+    expect(await rulesResponse.text()).toContain('Rules editor');
+
+    expect(testResponse.status).toBe(200);
+    expect(testResponse.headers.get('content-type')).toContain('text/html');
+    expect(await testResponse.text()).toContain('Rule tester');
+
+    expect(filesResponse.status).toBe(200);
+    expect(filesResponse.headers.get('content-type')).toContain('text/html');
+    expect(await filesResponse.text()).toContain('Vault files');
   });
 });

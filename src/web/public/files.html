@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Obsidian OneDrive Sync Files</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/files.js"></script>
+  </head>
+  <body>
+    <main class="page page-wide">
+      <header class="page-header">
+        <div>
+          <h1>Vault files</h1>
+          <p class="subtitle">Browse markdown notes with saved-rule eligibility badges and preview their content.</p>
+        </div>
+        <nav class="nav-links" aria-label="Primary">
+          <a class="nav-link" href="/status.html">Status</a>
+          <a class="nav-link" href="/rules.html">Rules</a>
+          <a class="nav-link" href="/test.html">Rule tester</a>
+          <a class="nav-link nav-link-current" href="/files.html">Files</a>
+        </nav>
+      </header>
+
+      <section class="card stack">
+        <div class="form-grid filters-grid">
+          <label class="field-block" for="files-search">
+            <span class="field-label">Search</span>
+            <input id="files-search" class="text-input" type="search" placeholder="Filter by filepath" />
+          </label>
+          <label class="field-block" for="files-eligible-filter">
+            <span class="field-label">Eligibility</span>
+            <select id="files-eligible-filter" class="text-input">
+              <option value="">All</option>
+              <option value="eligible">Eligible</option>
+              <option value="ineligible">Ineligible</option>
+              <option value="parse-error">Parse error</option>
+            </select>
+          </label>
+          <label class="field-block" for="files-sort">
+            <span class="field-label">Sort</span>
+            <select id="files-sort" class="text-input">
+              <option value="path-asc">Path A → Z</option>
+              <option value="path-desc">Path Z → A</option>
+            </select>
+          </label>
+          <label class="field-block" for="files-limit">
+            <span class="field-label">Page size</span>
+            <select id="files-limit" class="text-input">
+              <option value="100">100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </label>
+        </div>
+        <div class="toolbar-actions">
+          <button id="files-apply-button" type="button">Apply filters</button>
+          <button id="files-prev-button" type="button">Previous</button>
+          <button id="files-next-button" type="button">Next</button>
+        </div>
+        <p id="files-status" class="status-message muted">Loading…</p>
+      </section>
+
+      <section class="grid layout-columns">
+        <section class="card stack-tight">
+          <div class="card-header">
+            <h2>Files</h2>
+            <span id="files-summary" class="muted"></span>
+          </div>
+          <div id="files-list" class="file-list" role="listbox" aria-label="Vault files"></div>
+        </section>
+
+        <section class="card stack-tight">
+          <div class="card-header">
+            <div>
+              <h2>Preview</h2>
+              <p id="preview-path" class="muted">Select a note to preview its content.</p>
+            </div>
+          </div>
+          <pre id="preview-content">No file selected.</pre>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

@@ -59,33 +59,25 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
    * Parses file content to extract frontmatter and inline tags,
    * then orchestrates rule evaluation.
    */
-  async evaluateFile(
+  async evaluateFile(filepath: string, content: string): Promise<EligibilityResult> {
+    return this.evaluateFileWithEngine(filepath, content, this.ruleEngine, {
+      useCache: this.enableCache,
+      emitEvent: true,
+    });
+  }
+
+  /**
+   * Evaluate a file against an explicit engine without mutating live state.
+   */
+  async evaluateFileWithRuleEngine(
     filepath: string,
-    content: string
+    content: string,
+    ruleEngine: RuleEngine
   ): Promise<EligibilityResult> {
-    const contentHash = hashInput(content);
-
-    // Check cache first
-    if (this.enableCache) {
-      const cached = this.getCachedResult(filepath, contentHash);
-      if (cached) {
-        this.logger.debug(`Using cached result for ${filepath}`);
-        return cached;
-      }
-    }
-
-    // Parse frontmatter from content
-    const parseResult = this.frontmatterParser.parse(content, filepath);
-    const frontmatter = parseResult.frontmatter;
-
-    // Evaluate with extracted frontmatter
-    return this.evaluateFileWithFrontmatter(
-      filepath,
-      frontmatter,
-      parseResult.content,
-      contentHash,
-      parseResult.error
-    );
+    return this.evaluateFileWithEngine(filepath, content, ruleEngine, {
+      useCache: false,
+      emitEvent: false,
+    });
   }
 
   /**
@@ -99,11 +91,29 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     precomputedHash?: string,
     parseError?: FrontmatterParseError
   ): Promise<EligibilityResult> {
-    const contentHash =
-      precomputedHash ?? hashInput(JSON.stringify(frontmatter ?? {}), content ?? '');
+    return this.evaluateFrontmatterWithEngine(
+      filepath,
+      frontmatter,
+      this.ruleEngine,
+      {
+        content,
+        contentHash: precomputedHash,
+        parseError,
+        useCache: this.enableCache,
+        emitEvent: true,
+      }
+    );
+  }
 
-    // Check cache first
-    if (this.enableCache) {
+  private async evaluateFileWithEngine(
+    filepath: string,
+    content: string,
+    ruleEngine: RuleEngine,
+    options: { useCache: boolean; emitEvent: boolean }
+  ): Promise<EligibilityResult> {
+    const contentHash = hashInput(content);
+
+    if (options.useCache) {
       const cached = this.getCachedResult(filepath, contentHash);
       if (cached) {
         this.logger.debug(`Using cached result for ${filepath}`);
@@ -111,16 +121,45 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
       }
     }
 
-    const contentToEval = content ?? '';
+    const parseResult = this.frontmatterParser.parse(content, filepath);
+    return this.evaluateFrontmatterWithEngine(filepath, parseResult.frontmatter, ruleEngine, {
+      content: parseResult.content,
+      contentHash,
+      parseError: parseResult.error,
+      useCache: options.useCache,
+      emitEvent: options.emitEvent,
+    });
+  }
 
-    // A file whose frontmatter failed to parse cannot be evaluated safely: its
-    // `publish`/`private`/`tags` values are unknown, so treating it as a normal
-    // rule miss could silently publish a note that was meant to stay private.
-    // Fail closed and report the cause distinctly.
-    if (parseError) {
+  private async evaluateFrontmatterWithEngine(
+    filepath: string,
+    frontmatter: Frontmatter,
+    ruleEngine: RuleEngine,
+    options: {
+      content?: string;
+      contentHash?: string;
+      parseError?: FrontmatterParseError;
+      useCache: boolean;
+      emitEvent: boolean;
+    }
+  ): Promise<EligibilityResult> {
+    const contentHash =
+      options.contentHash ?? hashInput(JSON.stringify(frontmatter ?? {}), options.content ?? '');
+
+    if (options.useCache) {
+      const cached = this.getCachedResult(filepath, contentHash);
+      if (cached) {
+        this.logger.debug(`Using cached result for ${filepath}`);
+        return cached;
+      }
+    }
+
+    const contentToEval = options.content ?? '';
+
+    if (options.parseError) {
       const location = [
-        parseError.line !== undefined ? `line ${parseError.line}` : null,
-        parseError.column !== undefined ? `column ${parseError.column}` : null,
+        options.parseError.line !== undefined ? `line ${options.parseError.line}` : null,
+        options.parseError.column !== undefined ? `column ${options.parseError.column}` : null,
       ]
         .filter(Boolean)
         .join(', ');
@@ -128,50 +167,35 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
       const result: EligibilityResult = {
         eligible: false,
         reason: location
-          ? `Frontmatter parse error at ${location}: ${parseError.reason}`
-          : `Frontmatter parse error: ${parseError.reason}`,
+          ? `Frontmatter parse error at ${location}: ${options.parseError.reason}`
+          : `Frontmatter parse error: ${options.parseError.reason}`,
         rules: [],
         evaluatedAt: Date.now(),
-        parseError,
+        parseError: options.parseError,
       };
 
-      if (this.enableCache) {
+      if (options.useCache) {
         this.cacheResult(filepath, result, contentHash);
       }
 
-      await this.emit('evaluated', result);
-      // The parser already logged the actionable detail at warn level; callers
-      // surface the outcome via `parseError`, so avoid double-warning here.
+      if (options.emitEvent) {
+        await this.emit('evaluated', result);
+      }
       this.logger.debug(`Skipping ${filepath}: ${result.reason}`);
 
       return result;
     }
 
-    // Extract tags from frontmatter
     const frontmatterTags = this.frontmatterParser.getTags(frontmatter);
-
-    // Extract inline tags from content, keeping track of which were written on
-    // task lines: `#waiting` on a checkbox annotates that task rather than
-    // labelling the note, and rules need to be able to tell the two apart.
     const sourcedTags = this.inlineTagParser.extractTagsWithSource(contentToEval);
     const inlineTags = sourcedTags.filter((t) => t.source === 'inline').map((t) => t.tag);
     const taskTags = sourcedTags.filter((t) => t.source === 'task').map((t) => t.tag);
-
-    // `tags` keeps carrying the merged union so existing rules are unaffected;
-    // provenance travels alongside it under a reserved key.
     const allTags = Array.from(new Set([...frontmatterTags, ...inlineTags, ...taskTags]));
 
     const tagSources = { frontmatter: frontmatterTags, inline: inlineTags, task: taskTags };
     const evaluationFrontmatter = attachTagSources({ ...frontmatter, tags: allTags }, tagSources);
+    const engineResult = ruleEngine.evaluate(filepath, evaluationFrontmatter, contentToEval);
 
-    // Evaluate using rule engine
-    const engineResult = this.ruleEngine.evaluate(
-      filepath,
-      evaluationFrontmatter,
-      contentToEval
-    );
-
-    // Build eligibility result
     const result: EligibilityResult = {
       eligible: engineResult.eligible,
       reason: engineResult.reason,
@@ -180,17 +204,15 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
       tagSources,
     };
 
-    // Cache the result
-    if (this.enableCache) {
+    if (options.useCache) {
       this.cacheResult(filepath, result, contentHash);
     }
 
-    // Emit event
-    await this.emit('evaluated', result);
+    if (options.emitEvent) {
+      await this.emit('evaluated', result);
+    }
 
-    this.logger.debug(
-      `File ${filepath} evaluated: eligible=${result.eligible}`
-    );
+    this.logger.debug(`File ${filepath} evaluated: eligible=${result.eligible}`);
 
     return result;
   }

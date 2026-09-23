@@ -13,6 +13,9 @@ dist/
 coverage/
 .nyc_output/
 vitest.config.ts.snap
+playwright-report/
+test-results/
+tests/e2e/.runtime/
 
 # User config (contains local paths)
 config.json
