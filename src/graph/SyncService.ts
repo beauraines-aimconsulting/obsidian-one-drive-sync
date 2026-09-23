@@ -45,6 +45,11 @@ export interface SyncStatusSummary {
   totalBytes: number;
 }
 
+export interface SyncExecutionOverrides {
+  forceSync?: boolean;
+  dryRun?: boolean;
+}
+
 export class SyncService {
   private publicationService: PublicationService;
   private authProvider: GraphAuthProvider;
@@ -77,7 +82,19 @@ export class SyncService {
   async sync(
     onProgress?: (message: string) => void
   ): Promise<SyncResult> {
+    return this.syncWithOverrides({}, onProgress);
+  }
+
+  async syncWithOverrides(
+    overrides: SyncExecutionOverrides,
+    onProgress?: (message: string) => void
+  ): Promise<SyncResult> {
     const startTime = Date.now();
+    const executionOptions: SyncOptions = {
+      ...this.options,
+      ...(overrides.forceSync !== undefined ? { forceSync: overrides.forceSync } : {}),
+      ...(overrides.dryRun !== undefined ? { dryRun: overrides.dryRun } : {}),
+    };
     const result: SyncResult = {
       uploaded: [],
       skipped: [],
@@ -94,13 +111,13 @@ export class SyncService {
     const accessToken = await this.authProvider.getToken();
 
     const client = new OneDriveClient({
-      targetFolder: this.options.targetFolder,
+      targetFolder: executionOptions.targetFolder,
       accessToken,
     });
 
     // Scan vault for markdown files
     log('📂 Scanning vault...');
-    const files = await this.walkMarkdown(this.options.vaultPath);
+    const files = await this.walkMarkdown(executionOptions.vaultPath, executionOptions.ignorePatterns);
     log(`   Found ${files.length} markdown files`);
 
     // Evaluate each file
@@ -124,14 +141,14 @@ export class SyncService {
 
     // Upload changed files
     for (const { relativePath, content } of eligibleFiles) {
-      const changed = this.options.forceSync || this.syncState.hasChanged(relativePath, content);
+      const changed = executionOptions.forceSync || this.syncState.hasChanged(relativePath, content);
 
       if (!changed) {
         result.skipped.push(relativePath);
         continue;
       }
 
-      if (this.options.dryRun) {
+      if (executionOptions.dryRun) {
         log(`   [dry-run] Would upload: ${relativePath}`);
         result.uploaded.push(relativePath);
         continue;
@@ -169,7 +186,7 @@ export class SyncService {
       if (!eligiblePaths.has(tracked) && !parseErrorPaths.has(tracked)) {
         const entry = this.syncState.getEntry(tracked);
         if (entry) {
-          if (this.options.dryRun) {
+          if (executionOptions.dryRun) {
             log(`   [dry-run] Would remove: ${tracked}`);
             result.removed.push(tracked);
           } else {
@@ -294,7 +311,7 @@ export class SyncService {
     });
   }
 
-  private async walkMarkdown(dir: string): Promise<string[]> {
-    return walkMarkdown(dir, { ignorePatterns: this.options.ignorePatterns });
+  private async walkMarkdown(dir: string, ignorePatterns = this.options.ignorePatterns): Promise<string[]> {
+    return walkMarkdown(dir, { ignorePatterns });
   }
 }

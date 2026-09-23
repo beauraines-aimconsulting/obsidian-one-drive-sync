@@ -124,6 +124,11 @@ button:disabled {
   grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
 }
 
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 1rem;
+}
+
 .stack {
   display: grid;
   gap: 1rem;
@@ -258,6 +263,30 @@ button:disabled {
 }
 
 pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.summary-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.summary-list div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.summary-list dt {
+  color: #d1d5db;
+  font-size: 0.95rem;
+}
+
+.summary-list dd {
+  margin: 0;
+  font-weight: 600;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;

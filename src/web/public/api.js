@@ -10,11 +10,25 @@ export function bootstrapToken() {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+export function readStoredToken() {
+  bootstrapToken();
+  return window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
 export function readHeaders(extraHeaders = {}) {
-  const token = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  const token = readStoredToken();
   return token
     ? { ...extraHeaders, Authorization: `Bearer ${token}` }
     : { ...extraHeaders };
+}
+
+export function withStoredToken(url) {
+  const token = readStoredToken();
+  if (!token) return url;
+
+  const absolute = new URL(url, window.location.origin);
+  absolute.searchParams.set('token', token);
+  return `${absolute.pathname}${absolute.search}${absolute.hash}`;
 }
 
 export async function fetchJson(url, options = {}) {

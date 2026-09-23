@@ -30,6 +30,12 @@ ENV NODE_ENV=production \
     ONEDRIVE_FOLDER=ObsidianPublished \
     LOG_LEVEL=info \
     DEBOUNCE_DELAY=300 \
+    HEALTH_PORT=8080 \
+    WEB_UI_ENABLED=false \
+    WEB_PORT=8080 \
+    WEB_BIND_ADDRESS=0.0.0.0 \
+    WEB_UI_READONLY=false \
+    WEB_UI_TOKEN= \
     SYNC_SCHEDULE=
 
 RUN mkdir -p /home/node/.obsidian-sync /output \

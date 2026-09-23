@@ -146,6 +146,11 @@ export const putRules: RouteHandler = async (request, response, context) => {
     }
 
     response.setHeader('ETag', result.state.etag);
+    context.options.events?.publish({
+      type: 'rules-updated',
+      timestamp: new Date().toISOString(),
+      etag: result.state.etag,
+    });
     sendApiJson(response, 200, toRulesResponseBody(result.state));
   } catch (error) {
     sendApiJson(response, 500, {

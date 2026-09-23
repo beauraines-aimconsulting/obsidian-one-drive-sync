@@ -18,6 +18,7 @@ const API_RESPONSE_HEADERS = {
 
 export interface SecurityCheckOptions {
   pathname: string;
+  requestUrl: URL;
   token?: string;
   readOnly: boolean;
 }
@@ -60,12 +61,16 @@ export function constantTimeTokenMatch(expectedToken: string, providedToken: str
   return timingSafeEqual(expectedHash, providedHash);
 }
 
-function readBearerToken(request: IncomingMessage): string | undefined {
+function readBearerToken(request: IncomingMessage, requestUrl: URL): string | undefined {
   const header = request.headers.authorization;
-  if (!header) return undefined;
-  const [scheme, value] = header.split(/\s+/, 2);
-  if (scheme !== 'Bearer' || !value) return undefined;
-  return value;
+  if (header) {
+    const [scheme, value] = header.split(/\s+/, 2);
+    if (scheme === 'Bearer' && value) {
+      return value;
+    }
+  }
+
+  return requestUrl.searchParams.get('token') ?? undefined;
 }
 
 function isAllowedOrigin(request: IncomingMessage): boolean {
@@ -120,7 +125,7 @@ export async function applyApiSecurity(
   response.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (options.token) {
-    const providedToken = readBearerToken(request);
+    const providedToken = readBearerToken(request, options.requestUrl);
     if (!providedToken || !constantTimeTokenMatch(options.token, providedToken)) {
       sendApiError(response, 401, 'Unauthorized');
       return null;

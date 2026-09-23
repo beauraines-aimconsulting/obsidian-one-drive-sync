@@ -1,9 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { URL } from 'url';
 import type { Scheduler } from '../schedule/Scheduler.js';
+import type { SyncCoordinator } from '../schedule/SyncCoordinator.js';
 import type { SyncService } from '../graph/SyncService.js';
 import type { HealthStatusProvider } from '../health/HealthServer.js';
 import type { PublicationService } from '../publications/PublicationService.js';
+import type { WebEventStream } from './events.js';
+import type { SyncRunManager } from './syncRuns.js';
 
 export interface WebServerOptions {
   port: number;
@@ -16,6 +19,9 @@ export interface WebServerOptions {
   publicationService: PublicationService;
   syncService?: SyncService;
   scheduler?: Scheduler;
+  syncCoordinator?: SyncCoordinator;
+  events?: WebEventStream;
+  syncRuns?: SyncRunManager;
   healthStatus: HealthStatusProvider;
 }
 
