@@ -5,6 +5,8 @@ import { writeHealthResponse } from '../health/HealthServer.js';
 import { Router } from './router.js';
 import { getConfig } from './api/config.js';
 import { getRules, postValidateRules, putRules } from './api/rules.js';
+import { getFileContent, getFiles } from './api/files.js';
+import { postRulesTest } from './api/ruleTest.js';
 import { getStatus } from './api/status.js';
 import { applyApiSecurity, isLoopbackBindAddress, sendApiError } from './security.js';
 import { serveStaticFile } from './staticFiles.js';
@@ -25,6 +27,9 @@ export class WebServer {
     this.router.add('GET', '/api/rules', getRules);
     this.router.add('PUT', '/api/rules', putRules);
     this.router.add('POST', '/api/rules/validate', postValidateRules);
+    this.router.add('POST', '/api/rules/test', postRulesTest);
+    this.router.add('GET', '/api/files', getFiles);
+    this.router.add('GET', '/api/files/:filepath*', getFileContent);
   }
 
   async start(): Promise<void> {

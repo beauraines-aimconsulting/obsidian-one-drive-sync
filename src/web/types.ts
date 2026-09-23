@@ -12,6 +12,7 @@ export interface WebServerOptions {
   readOnly: boolean;
   vaultPath: string;
   rulesConfigPath: string;
+  ignorePatterns?: string[];
   publicationService: PublicationService;
   syncService?: SyncService;
   scheduler?: Scheduler;

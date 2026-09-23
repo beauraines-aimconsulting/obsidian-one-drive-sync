@@ -91,6 +91,7 @@ describe('WebServer', () => {
       readOnly: options.readOnly ?? false,
       vaultPath,
       rulesConfigPath,
+      ignorePatterns: [],
       publicationService: makePublicationService(vaultPath),
       ...(options.syncService ? { syncService: options.syncService } : {}),
       healthStatus: options.healthStatus ?? makeStatusProvider(),
@@ -261,10 +262,12 @@ describe('WebServer', () => {
   it('serves the static status shell and browser assets', async () => {
     const server = await startWebServer();
 
-    const [indexResponse, appResponse, rulesResponse] = await Promise.all([
+    const [indexResponse, appResponse, rulesResponse, testResponse, filesResponse] = await Promise.all([
       fetch(`http://127.0.0.1:${server.getPort()}/`),
       fetch(`http://127.0.0.1:${server.getPort()}/app.js`),
       fetch(`http://127.0.0.1:${server.getPort()}/rules.html`),
+      fetch(`http://127.0.0.1:${server.getPort()}/test.html`),
+      fetch(`http://127.0.0.1:${server.getPort()}/files.html`),
     ]);
 
     expect(indexResponse.status).toBe(200);
@@ -278,5 +281,13 @@ describe('WebServer', () => {
     expect(rulesResponse.status).toBe(200);
     expect(rulesResponse.headers.get('content-type')).toContain('text/html');
     expect(await rulesResponse.text()).toContain('Rules editor');
+
+    expect(testResponse.status).toBe(200);
+    expect(testResponse.headers.get('content-type')).toContain('text/html');
+    expect(await testResponse.text()).toContain('Rule tester');
+
+    expect(filesResponse.status).toBe(200);
+    expect(filesResponse.headers.get('content-type')).toContain('text/html');
+    expect(await filesResponse.text()).toContain('Vault files');
   });
 });

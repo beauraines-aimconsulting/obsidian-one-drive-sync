@@ -522,6 +522,7 @@ async function main(): Promise<number> {
         readOnly: config.webUiReadOnly,
         vaultPath: config.vaultPath,
         rulesConfigPath: rulesPath,
+        ignorePatterns: config.ignorePatterns,
         publicationService,
         ...(syncService ? { syncService } : {}),
         ...(scheduler ? { scheduler } : {}),
