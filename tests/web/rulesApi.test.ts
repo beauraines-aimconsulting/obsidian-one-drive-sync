@@ -91,6 +91,7 @@ describe('rules API', () => {
       readOnly: options.readOnly ?? false,
       vaultPath,
       rulesConfigPath,
+      ignorePatterns: [],
       publicationService,
       healthStatus: () => ({
         watcherActive: true,

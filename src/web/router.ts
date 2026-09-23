@@ -27,7 +27,7 @@ export class Router {
     const pathSegments = this.split(pathname);
 
     for (const route of this.routes) {
-      if (route.method !== normalizedMethod || route.segments.length !== pathSegments.length) {
+      if (route.method !== normalizedMethod) {
         continue;
       }
 
@@ -36,6 +36,19 @@ export class Router {
       for (let index = 0; index < route.segments.length; index += 1) {
         const routeSegment = route.segments[index];
         const pathSegment = pathSegments[index];
+
+        if (routeSegment.startsWith(':') && routeSegment.endsWith('*')) {
+          const paramName = routeSegment.slice(1, -1);
+          params[paramName] = decodeURIComponent(pathSegments.slice(index).join('/'));
+          matched = index <= pathSegments.length;
+          break;
+        }
+
+        if (pathSegment === undefined) {
+          matched = false;
+          break;
+        }
+
         if (routeSegment.startsWith(':')) {
           params[routeSegment.slice(1)] = decodeURIComponent(pathSegment);
           continue;
@@ -44,6 +57,13 @@ export class Router {
           matched = false;
           break;
         }
+      }
+
+      const lastSegment = route.segments.at(-1);
+      const hasRestParam =
+        typeof lastSegment === 'string' && lastSegment.startsWith(':') && lastSegment.endsWith('*');
+      if (!hasRestParam && route.segments.length !== pathSegments.length) {
+        matched = false;
       }
 
       if (matched) {

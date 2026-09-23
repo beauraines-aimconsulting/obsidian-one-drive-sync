@@ -277,3 +277,91 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+.layout-columns {
+  grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr);
+}
+
+.align-end {
+  align-self: end;
+}
+
+.code-editor-compact {
+  min-height: 18rem;
+}
+
+.filters-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.trace-tree {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.trace-node > details > summary {
+  cursor: pointer;
+}
+
+.trace-node > details > summary,
+.trace-node {
+  line-height: 1.5;
+}
+
+.file-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.file-list-item {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.file-list-item-active {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 1px #60a5fa;
+}
+
+.file-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.file-list-path {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.file-list-reason {
+  text-align: left;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.badge-eligible {
+  color: #86efac;
+}
+
+.badge-ineligible {
+  color: #fca5a5;
+}
+
+.badge-parse-error {
+  color: #fcd34d;
+}
