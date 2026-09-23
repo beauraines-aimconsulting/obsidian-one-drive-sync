@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'http';
+import { createServer, type Server, type ServerResponse } from 'http';
 import type { AddressInfo } from 'net';
 import type { ScheduleStatus } from '../schedule/types.js';
 
@@ -27,6 +27,14 @@ export function isLive(status: HealthStatus): boolean {
 
 export type HealthStatusProvider = () => HealthStatus;
 
+export function writeHealthResponse(response: ServerResponse, status: HealthStatus): void {
+  const live = isLive(status);
+  response.writeHead(live ? 200 : 503, {
+    'Content-Type': 'application/json',
+  });
+  response.end(JSON.stringify({ status: live ? 'ok' : 'unhealthy', ...status }));
+}
+
 export class HealthServer {
   private server: Server | null = null;
 
@@ -44,12 +52,7 @@ export class HealthServer {
         return;
       }
 
-      const status = this.status();
-      const live = isLive(status);
-      response.writeHead(live ? 200 : 503, {
-        'Content-Type': 'application/json',
-      });
-      response.end(JSON.stringify({ status: live ? 'ok' : 'unhealthy', ...status }));
+      writeHealthResponse(response, this.status());
     });
 
     await new Promise<void>((resolve, reject) => {

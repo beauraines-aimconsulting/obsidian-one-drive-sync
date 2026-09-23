@@ -108,6 +108,13 @@ export class SyncStateStore {
   }
 
   /**
+   * Get the total bytes tracked across all synced files.
+   */
+  getTotalBytes(): number {
+    return Object.values(this.state.entries).reduce((sum, entry) => sum + entry.size, 0);
+  }
+
+  /**
    * Get the last sync timestamp.
    */
   getLastSyncAt(): string | null {

@@ -1,0 +1,36 @@
+import type { IncomingMessage, ServerResponse } from 'http';
+import type { URL } from 'url';
+import type { Scheduler } from '../schedule/Scheduler.js';
+import type { SyncService } from '../graph/SyncService.js';
+import type { HealthStatusProvider } from '../health/HealthServer.js';
+import type { PublicationService } from '../publications/PublicationService.js';
+
+export interface WebServerOptions {
+  port: number;
+  bindAddress: string;
+  token?: string;
+  readOnly: boolean;
+  vaultPath: string;
+  rulesConfigPath: string;
+  publicationService: PublicationService;
+  syncService?: SyncService;
+  scheduler?: Scheduler;
+  healthStatus: HealthStatusProvider;
+}
+
+export interface RouteContext {
+  params: Record<string, string>;
+  requestUrl: URL;
+  body?: unknown;
+  options: WebServerOptions;
+}
+
+export type RouteHandler = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RouteContext
+) => Promise<void>;
+
+export interface ApiErrorBody {
+  error: string;
+}

@@ -13,6 +13,11 @@ export interface AppConfig {
   tenantId?: string;
   oneDriveFolder: string;
   healthPort: number;
+  webEnabled: boolean;
+  webPort: number;
+  webBindAddress: string;
+  webUiToken?: string;
+  webUiReadOnly: boolean;
   usePolling: boolean;
   pollInterval: number;
   /** Periodic full sync. Absent when scheduling is off. */

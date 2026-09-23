@@ -39,6 +39,12 @@ export interface SyncFileResult {
   error?: string;
 }
 
+export interface SyncStatusSummary {
+  trackedFileCount: number;
+  lastSyncAt: string | null;
+  totalBytes: number;
+}
+
 export class SyncService {
   private publicationService: PublicationService;
   private authProvider: GraphAuthProvider;
@@ -55,6 +61,14 @@ export class SyncService {
     this.authProvider = authProvider;
     this.syncState = syncState;
     this.options = options;
+  }
+
+  getStatusSummary(): SyncStatusSummary {
+    return {
+      trackedFileCount: this.syncState.getCount(),
+      lastSyncAt: this.syncState.getLastSyncAt(),
+      totalBytes: this.syncState.getTotalBytes(),
+    };
   }
 
   /**
