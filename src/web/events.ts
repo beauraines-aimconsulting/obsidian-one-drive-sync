@@ -16,7 +16,7 @@ export interface SyncProgressEvent {
   timestamp: string;
   runId: string;
   message: string;
-  source: 'web' | 'schedule';
+  source: 'web' | 'schedule' | 'startup';
   dryRun: boolean;
   force: boolean;
 }

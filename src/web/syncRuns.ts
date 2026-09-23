@@ -25,7 +25,7 @@ export interface SyncRunSummary {
 
 export interface SyncRunRecord {
   runId: string;
-  source: 'web' | 'schedule';
+  source: 'web' | 'schedule' | 'startup';
   status: 'running' | 'success' | 'partial' | 'failed';
   startedAt: string;
   finishedAt?: string;
@@ -38,7 +38,7 @@ export interface SyncRunRecord {
 
 export interface SyncRunSnapshot {
   runId: string;
-  source: 'web' | 'schedule';
+  source: 'web' | 'schedule' | 'startup';
   status: 'running' | 'success' | 'partial' | 'failed';
   startedAt: string;
   finishedAt?: string;
@@ -51,7 +51,7 @@ export interface SyncRunSnapshot {
 export interface SyncExecutionRequest {
   dryRun: boolean;
   force: boolean;
-  source: 'web' | 'schedule';
+  source: 'web' | 'schedule' | 'startup';
   signal: RunSignal;
   onProgress: (message: string) => void;
 }
@@ -128,6 +128,34 @@ export class SyncRunManager {
     return this.cloneRecord(record);
   }
 
+  /**
+   * Kick off the process-startup full sync without waiting for it to finish.
+   *
+   * Used only for the initial `--sync` run when no `--schedule` is set, so the
+   * scheduler-handoff path in `triggerRun` never applies here. Returning the
+   * completion promise (rather than swallowing it, like `triggerRun` does)
+   * lets the caller notice a startup failure once the web server is already
+   * serving requests.
+   */
+  runStartupSync(request: SyncTriggerRequest = {}): {
+    record: SyncRunRecord;
+    completion: Promise<void>;
+  } {
+    const normalized = this.normalizeOptions(request);
+    const record = this.createRecord('startup', normalized);
+
+    const started = this.options.coordinator.startFullSync(
+      { cancelled: false },
+      (signal) => this.executeRecord(record, normalized, signal).then(() => undefined)
+    );
+    if (!started) {
+      this.deleteRecord(record.runId);
+      throw new SyncConflictError();
+    }
+
+    return { record: this.cloneRecord(record), completion: started };
+  }
+
   async executeScheduledRun(signal: RunSignal): Promise<ScheduledRun> {
     const pending = this.pendingManualRun;
     if (pending) {
@@ -172,7 +200,7 @@ export class SyncRunManager {
   }
 
   private createRecord(
-    source: 'web' | 'schedule',
+    source: 'web' | 'schedule' | 'startup',
     options: Required<SyncTriggerRequest>
   ): SyncRunRecord {
     const record: SyncRunRecord = {

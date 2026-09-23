@@ -479,4 +479,93 @@ describe('sync API', () => {
     expect((scheduler!.triggerNow as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
     expect(executeSync).toHaveBeenCalledTimes(1);
   });
+
+  describe('runStartupSync', () => {
+    function createManager(
+      executeSync: (request: {
+        dryRun: boolean;
+        force: boolean;
+        source: 'web' | 'schedule' | 'startup';
+        onProgress: (message: string) => void;
+      }) => Promise<SyncRunSummary>
+    ) {
+      const events = new WebEventStream();
+      const coordinator = new SyncCoordinator({ processFile: async () => undefined });
+      const syncRuns = new SyncRunManager({
+        coordinator,
+        events,
+        defaults: { dryRun: false, force: false },
+        executeSync: async ({ dryRun, force, source, onProgress }) =>
+          executeSync({ dryRun, force, source, onProgress }),
+      });
+      return { events, coordinator, syncRuns };
+    }
+
+    it('returns immediately with a running record tagged as "startup", then resolves', async () => {
+      const deferred = createDeferred();
+      const { syncRuns } = createManager(async ({ onProgress }) => {
+        onProgress('working');
+        await deferred.promise;
+        return {
+          uploaded: 1,
+          skipped: 0,
+          removed: 0,
+          failed: 0,
+          parseErrors: 0,
+          totalEligible: 1,
+          durationMs: 5,
+        };
+      });
+
+      const { record, completion } = syncRuns.runStartupSync({ dryRun: false, force: false });
+      expect(record.source).toBe('startup');
+      expect(record.status).toBe('running');
+      expect(syncRuns.getRun(record.runId)?.status).toBe('running');
+
+      deferred.resolve();
+      await completion;
+
+      expect(syncRuns.getRun(record.runId)?.status).toBe('success');
+    });
+
+    it('rejects the completion promise (without throwing synchronously) when the sync fails', async () => {
+      const { syncRuns } = createManager(async () => {
+        throw new Error('boom');
+      });
+
+      const { record, completion } = syncRuns.runStartupSync({});
+      await expect(completion).rejects.toThrow('boom');
+      expect(syncRuns.getRun(record.runId)?.status).toBe('failed');
+    });
+
+    it('publishes sync-progress and sync-complete events while running', async () => {
+      const events = new WebEventStream();
+      const coordinator = new SyncCoordinator({ processFile: async () => undefined });
+      const received: string[] = [];
+      events.subscribe((event) => received.push(event.type));
+
+      const syncRuns = new SyncRunManager({
+        coordinator,
+        events,
+        defaults: { dryRun: false, force: false },
+        executeSync: async ({ onProgress }) => {
+          onProgress('progressing');
+          return {
+            uploaded: 0,
+            skipped: 0,
+            removed: 0,
+            failed: 0,
+            parseErrors: 0,
+            totalEligible: 0,
+            durationMs: 1,
+          };
+        },
+      });
+
+      const { completion } = syncRuns.runStartupSync({});
+      await completion;
+
+      expect(received).toEqual(['sync-progress', 'sync-complete']);
+    });
+  });
 });

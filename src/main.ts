@@ -366,8 +366,11 @@ async function main(): Promise<number> {
     if (!syncService) return 1;
 
     // With a schedule, the first run is the scheduler's job — running one here
-    // too would sync the whole vault twice on startup.
-    if (!scheduleConfig) {
+    // too would sync the whole vault twice on startup. With the web UI
+    // enabled, the initial sync instead runs through the coordinator further
+    // below so the server can start immediately and stream its progress
+    // over SSE, rather than blocking startup until it finishes.
+    if (!scheduleConfig && !webEnabled) {
       const { exitCode } = await runSync(config, publicationService, options, syncService);
       if (exitCode !== 0) return exitCode;
       console.log('');
@@ -380,6 +383,9 @@ async function main(): Promise<number> {
     usePolling: config.usePolling,
     pollInterval: config.pollInterval,
   });
+  let failureLimitReached = false;
+  let runNumber = 0;
+  const events = new WebEventStream();
   const evaluate = async (filepath: string) => {
     const relativePath = path.relative(config.vaultPath, filepath);
     if (syncService) {
@@ -428,9 +434,6 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  let failureLimitReached = false;
-  let runNumber = 0;
-  const events = new WebEventStream();
   const coordinator = new SyncCoordinator({
     processFile: evaluate,
     logger: {
@@ -504,7 +507,11 @@ async function main(): Promise<number> {
       executeSync: async ({ dryRun, force, source, onProgress }): Promise<SyncRunSummary> => {
         runNumber += source === 'schedule' ? 1 : 0;
         const label =
-          source === 'schedule' ? `Scheduled sync #${runNumber}...` : 'Web-triggered sync...';
+          source === 'schedule'
+            ? `Scheduled sync #${runNumber}...`
+            : source === 'startup'
+              ? 'Startup sync...'
+              : 'Web-triggered sync...';
         const log = (message: string) => {
           console.log(message);
           onProgress(message);
@@ -559,6 +566,25 @@ async function main(): Promise<number> {
     });
   }
 
+  // With the web UI enabled and no schedule, the initial sync runs here
+  // instead of blocking before the server starts, so the web UI is
+  // reachable — and can show live progress via SSE — immediately.
+  let initialSyncFailed = false;
+  if (syncService && !scheduleConfig && webEnabled && syncRuns) {
+    const { record, completion } = syncRuns.runStartupSync({
+      dryRun: options.dryRun,
+      force: options.forceSync,
+    });
+    console.log(`🔄 Starting sync in the background (run ${record.runId})...`);
+    console.log('');
+    completion.catch((error) => {
+      initialSyncFailed = true;
+      console.error(
+        `❌ Startup sync failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+  }
+
   scheduler?.start();
 
   const healthStatus = () => ({
@@ -605,7 +631,7 @@ async function main(): Promise<number> {
     );
     const shutdown = async (signal: string): Promise<void> => {
       const code = await shutdownHandler(signal);
-      resolve(failureLimitReached && code === 0 ? 1 : code);
+      resolve((failureLimitReached || initialSyncFailed) && code === 0 ? 1 : code);
     };
     requestShutdown = (signal: string): void => void shutdown(signal);
     if (pendingShutdownSignal) requestShutdown(pendingShutdownSignal);
