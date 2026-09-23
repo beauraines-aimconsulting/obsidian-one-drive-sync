@@ -14,6 +14,7 @@ import { ScheduleHistoryStore } from './schedule/ScheduleHistoryStore.js';
 import { SyncCoordinator } from './schedule/SyncCoordinator.js';
 import { describeRunError } from './schedule/runErrors.js';
 import { HealthServer } from './health/HealthServer.js';
+import { WebServer } from './web/WebServer.js';
 import { parseDuration } from './utils/duration.js';
 import type { CliOptions } from './cli/types.js';
 
@@ -26,11 +27,13 @@ export function parseArgs(argv: string[]): CliOptions {
     sync: false,
     forceSync: false,
     watch: false,
+    web: false,
     migrateRules: false,
     yes: false,
     explain: undefined,
     explainJson: false,
     schedule: undefined,
+    webPort: undefined,
     configPath: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -41,6 +44,7 @@ export function parseArgs(argv: string[]): CliOptions {
     else if (argv[i] === '--sync') options.sync = true;
     else if (argv[i] === '--force-sync') options.forceSync = true;
     else if (argv[i] === '--watch') options.watch = true;
+    else if (argv[i] === '--web') options.web = true;
     else if (argv[i] === '--migrate-rules') options.migrateRules = true;
     else if (argv[i] === '--yes' || argv[i] === '-y') options.yes = true;
     else if (argv[i] === '--explain') {
@@ -56,6 +60,17 @@ export function parseArgs(argv: string[]): CliOptions {
         throw new Error('--schedule requires an interval, e.g. 15m, 1h, 1d');
       }
       options.schedule = value;
+    } else if (argv[i] === '--web-port') {
+      const value = argv[++i];
+      if (value === undefined || value.startsWith('-')) {
+        throw new Error('--web-port requires a TCP port number');
+      }
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+        throw new Error('--web-port must be an integer between 1 and 65535');
+      }
+      options.web = true;
+      options.webPort = parsed;
     } else if (argv[i] === '--config') options.configPath = argv[++i];
     else throw new Error(`Unknown option: ${argv[i]}`);
   }
@@ -109,7 +124,7 @@ export function parseArgs(argv: string[]): CliOptions {
 }
 
 export function usage(): string {
-  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --schedule <interval>\n                   Run a full sync repeatedly (e.g. 15m, 1h, 1d). Implies\n                   --sync; combine with --watch for event-driven updates\n                   plus periodic reconciliation\n  --explain <path> Evaluate one vault file and print why it was or was not\n                   eligible (exit 0 eligible, 1 ineligible, 2 error)\n  --explain-json   With --explain, emit the raw result as JSON\n  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only\n                   unless --yes is given)\n  --yes, -y        Confirm an action that otherwise only previews\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
+  return `Usage: obsidian-one-drive-sync [options]\n\nOptions:\n  --config <path>  Path to config.json\n  --dry-run        Scan once and exit (or preview sync without uploading)\n  --sync           Sync eligible files to OneDrive\n  --watch          Keep running and sync changes as they happen\n                   (combine with --sync for an initial full sync)\n  --web            Enable the local web UI on the configured port\n  --web-port <n>   Override the web UI port (implies --web)\n  --force-sync     Re-upload all eligible files regardless of changes\n  --schedule <interval>\n                   Run a full sync repeatedly (e.g. 15m, 1h, 1d). Implies\n                   --sync; combine with --watch for event-driven updates\n                   plus periodic reconciliation\n  --explain <path> Evaluate one vault file and print why it was or was not\n                   eligible (exit 0 eligible, 1 ineligible, 2 error)\n  --explain-json   With --explain, emit the raw result as JSON\n  --migrate-rules  Rewrite the rules config as rulesVersion 2 (preview only\n                   unless --yes is given)\n  --yes, -y        Confirm an action that otherwise only previews\n  --probe          Test Graph API connectivity and permissions\n  --logout         Clear cached authentication tokens\n  --help           Show help`;
 }
 
 async function runProbe(config: import('./config/types.js').AppConfig): Promise<number> {
@@ -332,7 +347,9 @@ async function main(): Promise<number> {
   const scheduleConfig = options.schedule
     ? { ...config.schedule, spec: options.schedule }
     : config.schedule;
-  const longRunning = options.watch || scheduleConfig !== undefined;
+  const webEnabled = options.web || config.webEnabled;
+  const webPort = options.webPort ?? config.webPort;
+  const longRunning = options.watch || webEnabled || scheduleConfig !== undefined;
 
   // One-shot sync mode (nothing keeping the process alive afterwards)
   if (options.sync && !longRunning) {
@@ -491,16 +508,32 @@ async function main(): Promise<number> {
     );
   }
 
-  const healthServer = new HealthServer(
-    () => ({
-      watcherActive: watcher.isWatching(),
-      lastFileProcessedAt: coordinator.getLastFileProcessedAt(),
-      ...(scheduler ? { schedule: scheduler.getStatus() } : {}),
-    }),
-    config.healthPort
-  );
-  await healthServer.start();
-  console.log(`❤️  Health probe: http://localhost:${config.healthPort}/healthz`);
+  const healthStatus = () => ({
+    watcherActive: watcher.isWatching(),
+    lastFileProcessedAt: coordinator.getLastFileProcessedAt(),
+    ...(scheduler ? { schedule: scheduler.getStatus() } : {}),
+  });
+
+  const server = webEnabled
+    ? new WebServer({
+        port: webPort,
+        bindAddress: config.webBindAddress,
+        token: config.webUiToken,
+        readOnly: config.webUiReadOnly,
+        vaultPath: config.vaultPath,
+        rulesConfigPath: rulesPath,
+        publicationService,
+        ...(syncService ? { syncService } : {}),
+        ...(scheduler ? { scheduler } : {}),
+        healthStatus,
+      })
+    : new HealthServer(healthStatus, config.healthPort);
+
+  await server.start();
+  console.log(`❤️  Health probe: http://localhost:${server.getPort()}/healthz`);
+  if (webEnabled) {
+    console.log(`🌐 Web UI: http://${config.webBindAddress}:${server.getPort()}/`);
+  }
 
   return await new Promise<number>((resolve) => {
     const shutdownHandler = createGracefulShutdown(
@@ -510,7 +543,7 @@ async function main(): Promise<number> {
         info: (message) => console.log(`\n${message}`),
         error: (message) => console.error(message),
       },
-      healthServer,
+      server,
       scheduler
     );
     const shutdown = async (signal: string): Promise<void> => {

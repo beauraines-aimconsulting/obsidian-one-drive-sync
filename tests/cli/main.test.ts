@@ -11,9 +11,11 @@ describe('CLI main', () => {
       sync: false,
       forceSync: false,
       watch: false,
+      web: false,
       migrateRules: false,
       yes: false,
       explainJson: false,
+      webPort: undefined,
       configPath: 'custom.json',
     });
   });
@@ -27,9 +29,11 @@ describe('CLI main', () => {
       sync: false,
       forceSync: false,
       watch: false,
+      web: false,
       migrateRules: false,
       yes: false,
       explainJson: false,
+      webPort: undefined,
       configPath: undefined,
     });
   });
@@ -57,6 +61,16 @@ describe('CLI main', () => {
 
   it('returns usage text', () => {
     expect(usage()).toContain('obsidian-one-drive-sync');
+  });
+
+  it('parses --web and --web-port', () => {
+    const options = parseArgs(['--web', '--web-port', '9090']);
+    expect(options.web).toBe(true);
+    expect(options.webPort).toBe(9090);
+  });
+
+  it('rejects an invalid --web-port', () => {
+    expect(() => parseArgs(['--web-port', '70000'])).toThrow(/--web-port must be an integer/);
   });
 });
 

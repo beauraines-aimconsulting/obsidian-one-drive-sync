@@ -155,6 +155,37 @@ describe('ConfigManager', () => {
     expect(config.healthPort).toBe(9090);
   });
 
+  it('should default the web port to the resolved health port', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.HEALTH_PORT = '9090';
+
+    const config = await configManager.load();
+
+    expect(config.webEnabled).toBe(false);
+    expect(config.webPort).toBe(9090);
+    expect(config.webBindAddress).toBe('127.0.0.1');
+    expect(config.webUiReadOnly).toBe(false);
+  });
+
+  it('should read web settings from the environment', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.WEB_UI_ENABLED = 'true';
+    env.WEB_PORT = '8181';
+    env.WEB_BIND_ADDRESS = '0.0.0.0';
+    env.WEB_UI_TOKEN = 'secret-token';
+    env.WEB_UI_READONLY = 'true';
+
+    const config = await configManager.load();
+
+    expect(config.webEnabled).toBe(true);
+    expect(config.webPort).toBe(8181);
+    expect(config.webBindAddress).toBe('0.0.0.0');
+    expect(config.webUiToken).toBe('secret-token');
+    expect(config.webUiReadOnly).toBe(true);
+  });
+
   it('should reject an invalid health port', async () => {
     env.VAULT_PATH = '/test/vault';
     env.OUTPUT_PATH = '/test/output';
@@ -243,6 +274,22 @@ describe('ConfigManager', () => {
     const config = await configManager.loadAndGet();
 
     expect(config.vaultPath).toBe('/test/vault');
+  });
+
+  it('should report config sources for masked config output', async () => {
+    env.VAULT_PATH = '/test/vault';
+    env.OUTPUT_PATH = '/test/output';
+    env.WEB_UI_ENABLED = 'true';
+    env.GRAPH_CLIENT_ID = 'client-1234';
+
+    const { config, sources } = await configManager.loadDetailed();
+
+    expect(config.webEnabled).toBe(true);
+    expect(sources.vaultPath).toBe('env');
+    expect(sources.outputPath).toBe('env');
+    expect(sources.webEnabled).toBe('env');
+    expect(sources.webPort).toBe('default');
+    expect(sources.clientId).toBe('env');
   });
 
   it('should load config values from a rules config file', async () => {
