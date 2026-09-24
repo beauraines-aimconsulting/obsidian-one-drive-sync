@@ -163,6 +163,10 @@ export async function startE2EApp(options: E2EAppOptions): Promise<StartedE2EApp
         lastSyncAt: syncStatus.lastSyncAt,
         totalBytes: syncStatus.totalBytes,
       }),
+      getFileSyncStatus: (_filepath: string, _content: string, eligible: boolean, parseError = false) => ({
+        status: parseError ? 'parse-error' : eligible ? 'never-synced' : 'not-eligible',
+        lastSyncedAt: null,
+      }),
     } as SyncService;
 
     syncRuns = new SyncRunManager({

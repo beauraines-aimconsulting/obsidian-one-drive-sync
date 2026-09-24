@@ -369,6 +369,28 @@ describe('files and rules test APIs', () => {
     await expect(absoluteResponse.json()).resolves.toEqual({ error: 'Path must be relative to the vault' });
   });
 
+  it('includes local sync statuses and filters by sync status', async () => {
+    const { baseUrl } = await startServer();
+
+    const response = await fetch(`${baseUrl}/api/files?syncStatus=never-synced`);
+    const payload = (await response.json()) as {
+      items: Array<{ filepath: string; syncStatus: string }>;
+      syncStatus: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.syncStatus).toBe('never-synced');
+    expect(payload.items).toEqual([
+      expect.objectContaining({
+        filepath: 'Eligible/keep.md',
+        syncStatus: 'never-synced',
+      }),
+    ]);
+
+    const invalidResponse = await fetch(`${baseUrl}/api/files?syncStatus=unknown`);
+    expect(invalidResponse.status).toBe(400);
+  });
+
   it('returns 404 for a missing preview file', async () => {
     const { baseUrl } = await startServer();
 

@@ -18,6 +18,7 @@ test('searches, paginates, shows badges, and previews file content', async ({ pa
   await expect(page.locator('#files-list')).toContainText('Eligible/missing-tag.md');
   await expect(page.locator('#files-list')).toContainText('Eligible');
   await expect(page.locator('#files-list')).toContainText('Ineligible');
+  await expect(page.locator('#files-list')).toContainText('Never synced');
 
   await page.getByLabel('Search').fill('');
   await page.getByLabel('Eligibility').selectOption('parse-error');
@@ -26,6 +27,11 @@ test('searches, paginates, shows badges, and previews file content', async ({ pa
   await expect(page.locator('#files-list')).toContainText('Parse error');
 
   await page.getByLabel('Eligibility').selectOption('');
+  await page.getByLabel('Sync status').selectOption('never-synced');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page.locator('#files-list')).toContainText('Never synced');
+  await expect(page.locator('#files-list')).not.toContainText('Broken/bad.md');
+
   await page.getByLabel('Search').fill('keep');
   await page.getByRole('button', { name: 'Apply filters' }).click();
   await page.getByRole('button', { name: /Eligible\/keep\.md/ }).click();

@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { EligibilityResult } from '../../publications/types.js';
+import type { FileSyncStatus, FileSyncStatusResult } from '../../graph/SyncService.js';
 import { walkMarkdown } from '../../vault/walkMarkdown.js';
 import { resolveVaultPath, sendApiJson } from '../security.js';
 import type { RouteHandler } from '../types.js';
@@ -9,6 +10,14 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 const SORT_VALUES = new Set(['path-asc', 'path-desc']);
 const ELIGIBILITY_VALUES = new Set(['eligible', 'ineligible', 'parse-error', 'true', 'false']);
+const SYNC_STATUS_VALUES = new Set([
+  'not-eligible',
+  'never-synced',
+  'synced',
+  'changed',
+  'parse-error',
+  'sync-failed',
+]);
 
 type FileStatus = 'eligible' | 'ineligible' | 'parse-error';
 
@@ -17,6 +26,9 @@ interface FileListItem {
   status: FileStatus;
   eligible: boolean;
   reason: string;
+  syncStatus: FileSyncStatus;
+  lastSyncedAt: string | null;
+  syncFailure?: string;
 }
 
 export const getFiles: RouteHandler = async (_request, response, context) => {
@@ -26,6 +38,9 @@ export const getFiles: RouteHandler = async (_request, response, context) => {
   const query = context.requestUrl.searchParams.get('q')?.trim().toLowerCase() ?? '';
   const eligibilityFilter = normalizeEligibilityFilter(
     context.requestUrl.searchParams.get('eligible')
+  );
+  const syncStatusFilter = normalizeSyncStatusFilter(
+    context.requestUrl.searchParams.get('syncStatus')
   );
 
   const limit = parseInteger(limitValue, DEFAULT_LIMIT, 'limit');
@@ -43,6 +58,13 @@ export const getFiles: RouteHandler = async (_request, response, context) => {
   if (context.requestUrl.searchParams.has('eligible') && eligibilityFilter === null) {
     sendApiJson(response, 400, {
       error: 'eligible must be one of: eligible, ineligible, parse-error, true, false',
+    });
+    return;
+  }
+  if (context.requestUrl.searchParams.has('syncStatus') && syncStatusFilter === null) {
+    sendApiJson(response, 400, {
+      error:
+        'syncStatus must be one of: not-eligible, never-synced, synced, changed, parse-error, sync-failed',
     });
     return;
   }
@@ -64,11 +86,15 @@ export const getFiles: RouteHandler = async (_request, response, context) => {
   let items: FileListItem[];
   let total: number;
 
-  if (eligibilityFilter) {
+  if (eligibilityFilter || syncStatusFilter) {
     const evaluated = await Promise.all(
       allFiles.map((filepath) => evaluateListItem(context.options.vaultPath, filepath, context))
     );
-    const filtered = evaluated.filter((item) => item.status === eligibilityFilter);
+    const filtered = evaluated.filter(
+      (item) =>
+        (!eligibilityFilter || item.status === eligibilityFilter) &&
+        (!syncStatusFilter || item.syncStatus === syncStatusFilter)
+    );
     total = filtered.length;
     items = filtered.slice(offset, offset + cappedLimit);
   } else {
@@ -87,6 +113,7 @@ export const getFiles: RouteHandler = async (_request, response, context) => {
     sort: sortValue,
     q: query,
     eligible: eligibilityFilter,
+    syncStatus: syncStatusFilter,
     hasMore: offset + items.length < total,
   });
 };
@@ -135,16 +162,32 @@ async function evaluateListItem(
 ): Promise<FileListItem> {
   const content = await fs.readFile(path.join(vaultPath, filepath), 'utf-8');
   const result = await context.options.publicationService.evaluateFile(filepath, content);
-  return toFileListItem(filepath, result);
+  return toFileListItem(
+    filepath,
+    result,
+    context.options.syncService?.getFileSyncStatus(
+      filepath,
+      content,
+      result.eligible,
+      Boolean(result.parseError)
+    ) ?? getDefaultSyncStatus(result)
+  );
 }
 
-function toFileListItem(filepath: string, result: EligibilityResult): FileListItem {
+function toFileListItem(
+  filepath: string,
+  result: EligibilityResult,
+  sync: FileSyncStatusResult
+): FileListItem {
   if (result.parseError) {
     return {
       filepath,
       status: 'parse-error',
       eligible: false,
       reason: result.reason,
+      syncStatus: sync.status,
+      lastSyncedAt: sync.lastSyncedAt,
+      ...(sync.failure ? { syncFailure: sync.failure } : {}),
     };
   }
 
@@ -153,6 +196,17 @@ function toFileListItem(filepath: string, result: EligibilityResult): FileListIt
     status: result.eligible ? 'eligible' : 'ineligible',
     eligible: result.eligible,
     reason: result.reason,
+    syncStatus: sync.status,
+    lastSyncedAt: sync.lastSyncedAt,
+    ...(sync.failure ? { syncFailure: sync.failure } : {}),
+  };
+}
+
+function getDefaultSyncStatus(result: EligibilityResult): FileSyncStatusResult {
+  if (result.parseError) return { status: 'parse-error', lastSyncedAt: null };
+  return {
+    status: result.eligible ? 'never-synced' : 'not-eligible',
+    lastSyncedAt: null,
   };
 }
 
@@ -179,4 +233,11 @@ function normalizeEligibilityFilter(value: string | null): FileStatus | undefine
   if (normalized === 'true') return 'eligible';
   if (normalized === 'false') return 'ineligible';
   return normalized as FileStatus;
+}
+
+function normalizeSyncStatusFilter(value: string | null): FileSyncStatus | undefined | null {
+  if (value === null || value.trim() === '') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!SYNC_STATUS_VALUES.has(normalized)) return null;
+  return normalized as FileSyncStatus;
 }

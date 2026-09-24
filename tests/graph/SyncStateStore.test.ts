@@ -54,6 +54,20 @@ describe('SyncStateStore', () => {
     expect(store.hasChanged('file.md', 'new content')).toBe(true);
   });
 
+  it('should persist failed attempts and clear them after a successful sync', () => {
+    store.markFailed('file.md', 'content', 'Upload failed');
+    expect(store.getFailure('file.md')).toEqual(
+      expect.objectContaining({
+        filepath: 'file.md',
+        contentHash: store.hashContent('content'),
+        error: 'Upload failed',
+      })
+    );
+
+    store.markSynced('file.md', 'content', 'id', 'path');
+    expect(store.getFailure('file.md')).toBeUndefined();
+  });
+
   it('should remove entries', () => {
     store.markSynced('file.md', 'content', 'item-1', 'path');
     expect(store.getCount()).toBe(1);
@@ -96,6 +110,7 @@ describe('SyncStateStore', () => {
     store.reset();
     expect(store.getCount()).toBe(0);
     expect(store.getLastSyncAt()).toBe(null);
+    expect(store.getFailure('a.md')).toBeUndefined();
   });
 
   it('should update lastSyncAt on markSynced', () => {

@@ -24,6 +24,14 @@ export interface SyncState {
   version: number;
   lastSyncAt: string;
   entries: Record<string, SyncEntry>;
+  failures?: Record<string, SyncFailure>;
+}
+
+export interface SyncFailure {
+  filepath: string;
+  contentHash: string;
+  error: string;
+  lastAttemptAt: string;
 }
 
 export class SyncStateStore {
@@ -70,8 +78,32 @@ export class SyncStateStore {
       lastSyncedAt: new Date().toISOString(),
       size: Buffer.byteLength(content, 'utf-8'),
     };
+    if (this.state.failures?.[filepath]) {
+      delete this.state.failures[filepath];
+    }
     this.state.lastSyncAt = new Date().toISOString();
     this.save();
+  }
+
+  /**
+   * Record a failed attempt for the file's current content.
+   */
+  markFailed(filepath: string, content: string, error: string): void {
+    if (!this.state.failures) this.state.failures = {};
+    this.state.failures[filepath] = {
+      filepath,
+      contentHash: this.hashContent(content),
+      error,
+      lastAttemptAt: new Date().toISOString(),
+    };
+    this.save();
+  }
+
+  /**
+   * Get the last failed attempt for a file, if any.
+   */
+  getFailure(filepath: string): SyncFailure | undefined {
+    return this.state.failures?.[filepath];
   }
 
   /**
@@ -79,10 +111,12 @@ export class SyncStateStore {
    */
   removeEntry(filepath: string): SyncEntry | undefined {
     const entry = this.state.entries[filepath];
+    const failure = this.state.failures?.[filepath];
     if (entry) {
       delete this.state.entries[filepath];
-      this.save();
     }
+    if (failure && this.state.failures) delete this.state.failures[filepath];
+    if (entry || failure) this.save();
     return entry;
   }
 
@@ -166,6 +200,7 @@ export class SyncStateStore {
       version: 1,
       lastSyncAt: '',
       entries: {},
+      failures: {},
     };
   }
 
