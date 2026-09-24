@@ -94,8 +94,9 @@ export class SyncService {
     if (parseError) return { status: 'parse-error', lastSyncedAt: null };
     if (!eligible) return { status: 'not-eligible', lastSyncedAt: null };
 
-    const entry = this.syncState.getEntry(filepath);
-    const failure = this.syncState.getFailure(filepath);
+    const stateFilepath = path.normalize(filepath);
+    const entry = this.syncState.getEntry(stateFilepath);
+    const failure = this.syncState.getFailure(stateFilepath);
     if (failure && failure.contentHash === this.syncState.hashContent(content)) {
       return {
         status: 'sync-failed',
@@ -106,7 +107,7 @@ export class SyncService {
     if (!entry) return { status: 'never-synced', lastSyncedAt: null };
 
     return {
-      status: this.syncState.hasChanged(filepath, content) ? 'changed' : 'synced',
+      status: this.syncState.hasChanged(stateFilepath, content) ? 'changed' : 'synced',
       lastSyncedAt: entry.lastSyncedAt,
     };
   }
