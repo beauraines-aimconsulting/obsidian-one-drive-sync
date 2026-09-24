@@ -105,6 +105,38 @@
       </section>
 
       <section class="card">
+        <div class="toolbar-row">
+          <div>
+            <h2>Authentication</h2>
+            <p class="muted">Re-authenticate Microsoft Graph access when the cached sign-in expires.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button id="auth-start-button" type="button">Start re-authentication</button>
+            <button id="auth-logout-button" type="button" class="button-danger">Logout</button>
+          </div>
+        </div>
+        <dl class="summary-list">
+          <div>
+            <dt>Cached token</dt>
+            <dd id="auth-cached-token">Loading…</dd>
+          </div>
+          <div>
+            <dt>Token expiry</dt>
+            <dd id="auth-token-expiry">Loading…</dd>
+          </div>
+          <div>
+            <dt>Flow state</dt>
+            <dd id="auth-flow-state">Loading…</dd>
+          </div>
+        </dl>
+        <div id="auth-device-code-panel" class="notice notice-warning hidden">
+          <p>Open <a id="auth-verification-link" href="#" target="_blank" rel="noreferrer">the Microsoft verification page</a> and enter:</p>
+          <p id="auth-user-code" class="auth-user-code"></p>
+        </div>
+        <p id="auth-status" class="status-message muted">No browser re-authentication is in progress.</p>
+      </section>
+
+      <section class="card">
         <div class="panel-header">
           <div>
             <h2>Live log</h2>

@@ -115,6 +115,11 @@ export class Scheduler {
     return [...this.recentRuns];
   }
 
+  resetConsecutiveFailures(): void {
+    this.consecutiveFailures = 0;
+    this.failureLimitFired = false;
+  }
+
   /**
    * Run now, out of band.
    *

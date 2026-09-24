@@ -9,7 +9,13 @@ import {
   AuthenticationResult,
   Configuration,
 } from '@azure/msal-node';
-import type { GraphAuthConfig, TokenResult } from './types.js';
+import type {
+  AuthStatusSnapshot,
+  DeviceCodeFlowStartResult,
+  DeviceCodeFlowState,
+  GraphAuthConfig,
+  TokenResult,
+} from './types.js';
 import { FileCachePlugin } from './FileCachePlugin.js';
 
 const DEFAULT_SCOPES = ['User.Read', 'Files.ReadWrite'];
@@ -17,11 +23,28 @@ const DEFAULT_SCOPES = ['User.Read', 'Files.ReadWrite'];
 // Azure CLI well-known client ID — works in most tenants without app registration
 const AZURE_CLI_CLIENT_ID = '04b07795-8dde-4d83-8aab-9804e8457b65';
 
+interface PendingDeviceCodeFlow {
+  id: number;
+  request: DeviceCodeRequest;
+  startedAt: string;
+  expiresAt: string;
+  timer: ReturnType<typeof setTimeout>;
+  onSuccess?: () => void;
+}
+
+export class DeviceCodeFlowConflictError extends Error {}
+
 export class GraphAuthProvider {
   private msalClient: PublicClientApplication;
   private config: GraphAuthConfig;
   private cachedToken: AuthenticationResult | null = null;
   private cachePlugin: FileCachePlugin | null = null;
+  private pendingDeviceCodeFlow: PendingDeviceCodeFlow | null = null;
+  private lastFlowState: DeviceCodeFlowState = 'idle';
+  private lastFlowStartedAt: string | null = null;
+  private lastFlowCompletedAt: string | null = null;
+  private flowSequence = 0;
+  private cancelledFlowIds = new Set<number>();
 
   constructor(config: GraphAuthConfig, options?: { enableCache?: boolean; cacheDir?: string }) {
     this.config = config;
@@ -127,6 +150,113 @@ export class GraphAuthProvider {
     return result.accessToken;
   }
 
+  async startDeviceCodeFlow(options?: {
+    scopes?: string[];
+    onSuccess?: () => void;
+  }): Promise<DeviceCodeFlowStartResult> {
+    if (this.pendingDeviceCodeFlow) {
+      throw new DeviceCodeFlowConflictError('A device-code sign-in is already pending');
+    }
+
+    const flowId = ++this.flowSequence;
+    const startedAt = new Date().toISOString();
+    const scopes = options?.scopes ?? DEFAULT_SCOPES;
+    let started = false;
+
+    this.lastFlowState = 'pending';
+    this.lastFlowStartedAt = startedAt;
+    this.lastFlowCompletedAt = null;
+
+    return await new Promise<DeviceCodeFlowStartResult>((resolve, reject) => {
+      const request: DeviceCodeRequest = {
+        scopes,
+        cancel: false,
+        deviceCodeCallback: (deviceCode) => {
+          if (started) {
+            return;
+          }
+          started = true;
+          const expiresAt = new Date(Date.now() + deviceCode.expiresIn * 1000).toISOString();
+          const timer = globalThis.setTimeout(() => {
+            this.timeoutDeviceCodeFlow(flowId);
+          }, deviceCode.expiresIn * 1000);
+
+          this.pendingDeviceCodeFlow = {
+            id: flowId,
+            request,
+            startedAt,
+            expiresAt,
+            timer,
+            ...(options?.onSuccess ? { onSuccess: options.onSuccess } : {}),
+          };
+
+          resolve({
+            userCode: deviceCode.userCode,
+            verificationUri: deviceCode.verificationUri,
+            expiresAt,
+          });
+        },
+      };
+
+      void this.msalClient
+        .acquireTokenByDeviceCode(request)
+        .then((result) => {
+          if (!result) {
+            throw new Error('Authentication failed: no result returned');
+          }
+
+          this.cachedToken = result;
+          if (this.cancelledFlowIds.delete(flowId)) {
+            this.cachedToken = null;
+            this.cachePlugin?.clearCache();
+            return;
+          }
+
+          const pending = this.pendingDeviceCodeFlow;
+          if (!pending || pending.id !== flowId) {
+            return;
+          }
+
+          pending.onSuccess?.();
+          this.completeDeviceCodeFlow(flowId, 'succeeded');
+        })
+        .catch((error: unknown) => {
+          if (this.cancelledFlowIds.delete(flowId)) {
+            return;
+          }
+          const pending = this.pendingDeviceCodeFlow;
+          if (!pending || pending.id !== flowId) {
+            if (!started) {
+              this.lastFlowState = 'failed';
+              this.lastFlowCompletedAt = new Date().toISOString();
+            }
+            return;
+          }
+
+          this.completeDeviceCodeFlow(flowId, 'failed');
+          if (!started) {
+            const message = error instanceof Error ? error.message : String(error);
+            reject(new Error(`Authentication failed: ${message}`));
+          }
+        });
+    });
+  }
+
+  getAuthStatus(): AuthStatusSnapshot {
+    const cachedTokenStatus = this.readCachedTokenStatus();
+    const pending = this.pendingDeviceCodeFlow;
+
+    return {
+      hasCachedToken: cachedTokenStatus.hasCachedToken,
+      tokenExpiresAt: cachedTokenStatus.expiresAt,
+      flowState: pending ? 'pending' : this.lastFlowState,
+      flowPending: pending !== null,
+      flowStartedAt: pending?.startedAt ?? this.lastFlowStartedAt,
+      flowExpiresAt: pending?.expiresAt ?? null,
+      flowCompletedAt: pending ? null : this.lastFlowCompletedAt,
+    };
+  }
+
   /**
    * Get the configured scopes needed for OneDrive operations.
    */
@@ -145,6 +275,7 @@ export class GraphAuthProvider {
    * Clear cached tokens (logout).
    */
   logout(): void {
+    this.cancelPendingDeviceCodeFlow('cancelled');
     this.cachedToken = null;
     if (this.cachePlugin) {
       this.cachePlugin.clearCache();
@@ -156,5 +287,51 @@ export class GraphAuthProvider {
    */
   hasCachedTokens(): boolean {
     return this.cachePlugin?.hasCachedTokens() ?? false;
+  }
+
+  private timeoutDeviceCodeFlow(flowId: number): void {
+    const pending = this.pendingDeviceCodeFlow;
+    if (!pending || pending.id !== flowId) {
+      return;
+    }
+
+    pending.request.cancel = true;
+    this.cancelledFlowIds.add(flowId);
+    this.completeDeviceCodeFlow(flowId, 'timed_out');
+  }
+
+  private cancelPendingDeviceCodeFlow(state: Extract<DeviceCodeFlowState, 'cancelled'>): void {
+    const pending = this.pendingDeviceCodeFlow;
+    if (!pending) {
+      return;
+    }
+
+    pending.request.cancel = true;
+    this.cancelledFlowIds.add(pending.id);
+    this.completeDeviceCodeFlow(pending.id, state);
+  }
+
+  private completeDeviceCodeFlow(flowId: number, state: Exclude<DeviceCodeFlowState, 'idle'>): void {
+    const pending = this.pendingDeviceCodeFlow;
+    if (!pending || pending.id !== flowId) {
+      return;
+    }
+
+    globalThis.clearTimeout(pending.timer);
+    this.pendingDeviceCodeFlow = null;
+    this.lastFlowState = state;
+    this.lastFlowStartedAt = pending.startedAt;
+    this.lastFlowCompletedAt = new Date().toISOString();
+  }
+
+  private readCachedTokenStatus(): { hasCachedToken: boolean; expiresAt: string | null } {
+    if (this.cachedToken?.expiresOn) {
+      return {
+        hasCachedToken: true,
+        expiresAt: this.cachedToken.expiresOn.toISOString(),
+      };
+    }
+
+    return this.cachePlugin?.getCachedTokenStatus() ?? { hasCachedToken: false, expiresAt: null };
   }
 }
