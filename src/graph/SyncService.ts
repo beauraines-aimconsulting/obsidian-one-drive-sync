@@ -45,6 +45,15 @@ export interface SyncStatusSummary {
   totalBytes: number;
 }
 
+export type FileSyncStatus =
+  'not-eligible' | 'never-synced' | 'synced' | 'changed' | 'parse-error' | 'sync-failed';
+
+export interface FileSyncStatusResult {
+  status: FileSyncStatus;
+  lastSyncedAt: string | null;
+  failure?: string;
+}
+
 export interface SyncExecutionOverrides {
   forceSync?: boolean;
   dryRun?: boolean;
@@ -73,6 +82,32 @@ export class SyncService {
       trackedFileCount: this.syncState.getCount(),
       lastSyncAt: this.syncState.getLastSyncAt(),
       totalBytes: this.syncState.getTotalBytes(),
+    };
+  }
+
+  getFileSyncStatus(
+    filepath: string,
+    content: string,
+    eligible: boolean,
+    parseError = false
+  ): FileSyncStatusResult {
+    if (parseError) return { status: 'parse-error', lastSyncedAt: null };
+    if (!eligible) return { status: 'not-eligible', lastSyncedAt: null };
+
+    const entry = this.syncState.getEntry(filepath);
+    const failure = this.syncState.getFailure(filepath);
+    if (failure && failure.contentHash === this.syncState.hashContent(content)) {
+      return {
+        status: 'sync-failed',
+        lastSyncedAt: entry?.lastSyncedAt ?? null,
+        failure: failure.error,
+      };
+    }
+    if (!entry) return { status: 'never-synced', lastSyncedAt: null };
+
+    return {
+      status: this.syncState.hasChanged(filepath, content) ? 'changed' : 'synced',
+      lastSyncedAt: entry.lastSyncedAt,
     };
   }
 
@@ -168,6 +203,7 @@ export class SyncService {
         );
         result.uploaded.push(relativePath);
       } else {
+        this.syncState.markFailed(relativePath, content, uploadResult.error ?? 'Unknown error');
         result.failed.push({
           filepath: relativePath,
           error: uploadResult.error ?? 'Unknown error',
@@ -291,12 +327,18 @@ export class SyncService {
         );
         return { action: 'uploaded', filepath: relativePath };
       }
+      this.syncState.markFailed(relativePath, fileContent, uploadResult.error ?? 'Unknown error');
       return {
         action: 'failed',
         filepath: relativePath,
         error: uploadResult.error ?? 'Unknown error',
       };
     } catch (error) {
+      this.syncState.markFailed(
+        relativePath,
+        fileContent,
+        error instanceof Error ? error.message : String(error)
+      );
       return {
         action: 'failed',
         filepath: relativePath,

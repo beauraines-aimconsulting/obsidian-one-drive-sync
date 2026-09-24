@@ -3,6 +3,7 @@ import { fetchJson } from './api.js';
 const elements = {
   search: document.getElementById('files-search'),
   eligible: document.getElementById('files-eligible-filter'),
+  syncStatus: document.getElementById('files-sync-status-filter'),
   sort: document.getElementById('files-sort'),
   limit: document.getElementById('files-limit'),
   apply: document.getElementById('files-apply-button'),
@@ -38,6 +39,7 @@ function currentQuery() {
   const query = elements.search.value.trim();
   if (query) search.set('q', query);
   if (elements.eligible.value) search.set('eligible', elements.eligible.value);
+  if (elements.syncStatus.value) search.set('syncStatus', elements.syncStatus.value);
   return search;
 }
 
@@ -104,7 +106,11 @@ function renderList() {
     badge.className = `badge badge-${item.status}`;
     badge.textContent = badgeLabel(item.status);
 
-    heading.append(pathText, badge);
+    const syncBadge = document.createElement('span');
+    syncBadge.className = `badge badge-sync-${item.syncStatus}`;
+    syncBadge.textContent = syncStatusLabel(item.syncStatus);
+
+    heading.append(pathText, badge, syncBadge);
 
     const reason = document.createElement('div');
     reason.className = 'file-list-reason muted';
@@ -151,6 +157,25 @@ function badgeLabel(status) {
       return 'Parse error';
     default:
       return 'Ineligible';
+  }
+}
+
+function syncStatusLabel(status) {
+  switch (status) {
+    case 'not-eligible':
+      return 'Not eligible';
+    case 'never-synced':
+      return 'Never synced';
+    case 'synced':
+      return 'Synced';
+    case 'changed':
+      return 'Changed';
+    case 'parse-error':
+      return 'Parse error';
+    case 'sync-failed':
+      return 'Sync failed';
+    default:
+      return status;
   }
 }
 

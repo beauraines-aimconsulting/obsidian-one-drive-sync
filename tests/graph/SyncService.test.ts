@@ -154,6 +154,48 @@ describe('SyncService', () => {
     expect(result.totalEligible).toBe(1);
   });
 
+  it('should derive file sync statuses from local state', () => {
+    const syncState = new SyncStateStore(tempStateDir);
+    const pubService = new PublicationService({
+      enableCache: false,
+      composition: 'OR',
+      logLevel: 'error',
+    });
+    const authProvider = new GraphAuthProvider(
+      { clientId: 'test', tenantId: 'test' },
+      { enableCache: false }
+    );
+    const service = new SyncService(pubService, authProvider, syncState, {
+      vaultPath: tempVault,
+      targetFolder: 'TestPublished',
+    });
+
+    expect(service.getFileSyncStatus('file.md', 'content', false)).toEqual({
+      status: 'not-eligible',
+      lastSyncedAt: null,
+    });
+    expect(service.getFileSyncStatus('file.md', 'content', true)).toEqual({
+      status: 'never-synced',
+      lastSyncedAt: null,
+    });
+
+    syncState.markSynced('file.md', 'content', 'id', 'path');
+    expect(service.getFileSyncStatus('file.md', 'content', true).status).toBe('synced');
+    expect(service.getFileSyncStatus('file.md', 'changed', true).status).toBe('changed');
+
+    syncState.markFailed('file.md', 'changed', 'Upload failed');
+    expect(service.getFileSyncStatus('file.md', 'changed', true)).toEqual({
+      status: 'sync-failed',
+      lastSyncedAt: expect.any(String),
+      failure: 'Upload failed',
+    });
+    expect(service.getFileSyncStatus('file.md', 'broken', true).status).toBe('changed');
+    expect(service.getFileSyncStatus('file.md', 'broken', true, true)).toEqual({
+      status: 'parse-error',
+      lastSyncedAt: null,
+    });
+  });
+
   it('should skip unchanged files', async () => {
     createVaultFile('cached.md', '# Cached');
 

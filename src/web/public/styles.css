@@ -421,3 +421,27 @@ pre {
 .badge-parse-error {
   color: #fcd34d;
 }
+
+.badge-sync-not-eligible {
+  color: #fca5a5;
+}
+
+.badge-sync-never-synced {
+  color: #c4b5fd;
+}
+
+.badge-sync-synced {
+  color: #86efac;
+}
+
+.badge-sync-changed {
+  color: #fdba74;
+}
+
+.badge-sync-parse-error {
+  color: #fcd34d;
+}
+
+.badge-sync-sync-failed {
+  color: #f87171;
+}
