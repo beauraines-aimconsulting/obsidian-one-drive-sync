@@ -32,3 +32,31 @@ test('searches, paginates, shows badges, and previews file content', async ({ pa
   await expect(page.locator('#preview-path')).toContainText('Eligible/keep.md');
   await expect(page.locator('#preview-content')).toContainText('# Keep');
 });
+
+test('bounds the file list and preview panels with internal scrolling', async ({ page }) => {
+  await page.goto('/files.html');
+
+  await expect(page.locator('#files-summary')).toContainText('1-100 of 106');
+
+  const filesList = page.locator('#files-list');
+  const previewContent = page.locator('#preview-content');
+
+  await expect(filesList).toHaveCSS('overflow-y', 'auto');
+  await expect(previewContent).toHaveCSS('overflow-y', 'auto');
+
+  const listMetrics = await filesList.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(listMetrics.scrollHeight).toBeGreaterThan(listMetrics.clientHeight);
+
+  const bodyScrollHeightBefore = await page.evaluate(() => document.body.scrollHeight);
+  await filesList.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect
+    .poll(() => filesList.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  const bodyScrollHeightAfter = await page.evaluate(() => document.body.scrollHeight);
+  expect(bodyScrollHeightAfter).toBe(bodyScrollHeightBefore);
+});
