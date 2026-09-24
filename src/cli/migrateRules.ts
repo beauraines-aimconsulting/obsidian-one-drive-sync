@@ -7,6 +7,7 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import { migrateRulesDocument, needsMigration } from '../rules/migrateRulesConfig.js';
 import { formatConfigErrors, validateRulesConfig } from '../rules/validateRulesConfig.js';
 import type { RulesDocument } from '../rules/configTypes.js';
@@ -17,6 +18,25 @@ export interface MigrateOptions {
   /** Write the result. Without this the command only previews the change. */
   confirm: boolean;
   log?: (message: string) => void;
+}
+
+function migrationWriteFailure(configPath: string, error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : undefined;
+
+  if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {
+    return [
+      `❌ Cannot write migrated config ${configPath}: ${code}.`,
+      'The migration needs a writable config directory for the atomic temp file and .v1.bak backup.',
+      'For Docker, mount the host config directory at /config:rw and ensure it is writable by the container user.',
+    ].join(' ');
+  }
+
+  return `❌ Failed to write migrated config ${configPath}: ${
+    error instanceof Error ? error.message : String(error)
+  }`;
 }
 
 export function migrateRulesFile(configPath: string, options: MigrateOptions): number {
@@ -66,8 +86,17 @@ export function migrateRulesFile(configPath: string, options: MigrateOptions): n
   }
 
   const backupPath = `${configPath}.v1.bak`;
-  fs.copyFileSync(configPath, backupPath);
-  writeFileAtomic(configPath, updated);
+  try {
+    fs.accessSync(path.dirname(configPath), fs.constants.W_OK | fs.constants.X_OK);
+    if (fs.existsSync(backupPath)) {
+      fs.accessSync(backupPath, fs.constants.W_OK);
+    }
+    fs.copyFileSync(configPath, backupPath);
+    writeFileAtomic(configPath, updated);
+  } catch (error) {
+    log(migrationWriteFailure(configPath, error));
+    return 1;
+  }
 
   log(`✅ Migrated ${configPath} to rulesVersion 2.`);
   log(`   Backup written to ${backupPath}`);

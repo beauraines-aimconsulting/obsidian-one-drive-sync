@@ -725,6 +725,7 @@ describe('VaultWatcher', { timeout: 10000 }, () => {
       watcher.on('add', (event) => events.push(event));
 
       await watcher.watch(pollDir);
+      await new Promise((resolve) => setTimeout(resolve, 150));
       fs.writeFileSync(path.join(pollDir, 'polled.md'), '# polled');
 
       await vi.waitFor(() => expect(events.length).toBeGreaterThan(0), {
