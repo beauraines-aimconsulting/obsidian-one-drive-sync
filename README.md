@@ -859,6 +859,12 @@ event stream.
 Set `WEB_UI_READONLY=true` when you want status, rules browsing, and file browsing without any
 mutating actions.
 
+When `--sync` runs without `--schedule`, the initial full sync now starts in the background: the
+web server and UI are available immediately, and progress streams over SSE (the same feed used for
+web-triggered and scheduled runs) instead of the terminal blocking until the sync finishes. This
+only applies when the web UI is enabled; without it, `--sync` still blocks on the initial sync as
+before.
+
 ### Docker and Compose
 
 The runtime image includes web defaults (`WEB_PORT=8080`, `WEB_BIND_ADDRESS=0.0.0.0`) but leaves

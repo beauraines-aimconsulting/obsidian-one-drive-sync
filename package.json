@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc && node scripts/copy-web-assets.mjs",
     "start": "node dist/main.js",
-    "dev": "ts-node src/main.ts",
+    "dev": "node --loader ts-node/esm src/main.ts",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "npm run build && playwright test",

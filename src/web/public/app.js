@@ -1,5 +1,7 @@
 import { fetchJson, sendJson, withStoredToken } from './api.js';
 
+const LIVE_LOG_BOTTOM_THRESHOLD_PX = 24;
+
 const state = {
   status: null,
   authStatus: null,
@@ -85,8 +87,19 @@ function appendLogLine(line) {
 
 function renderLogs() {
   if (!elements.liveLogOutput) return;
+  const previousScrollTop = elements.liveLogOutput.scrollTop;
+  const shouldFollowLog =
+    elements.liveLogOutput.scrollHeight -
+      elements.liveLogOutput.scrollTop -
+      elements.liveLogOutput.clientHeight <=
+    LIVE_LOG_BOTTOM_THRESHOLD_PX;
+
   elements.liveLogOutput.textContent =
     state.logs.length > 0 ? state.logs.join('\n') : 'Waiting for sync events…';
+  elements.liveLogOutput.scrollTop = shouldFollowLog
+    ? elements.liveLogOutput.scrollHeight
+    : previousScrollTop;
+
   if (elements.liveLogMeta) {
     const run = state.currentRun;
     elements.liveLogMeta.textContent = run
