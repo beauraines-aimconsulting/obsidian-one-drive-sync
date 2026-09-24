@@ -35,10 +35,7 @@ export class OneDriveClient {
    * Upload a file from the local filesystem to OneDrive.
    * Automatically uses simple upload for small files and upload sessions for large ones.
    */
-  async uploadFile(
-    localPath: string,
-    relativePath: string
-  ): Promise<UploadResult> {
+  async uploadFile(localPath: string, relativePath: string): Promise<UploadResult> {
     const oneDrivePath = this.buildOneDrivePath(relativePath);
 
     try {
@@ -62,10 +59,7 @@ export class OneDriveClient {
   /**
    * Upload file content directly (without reading from disk).
    */
-  async uploadContent(
-    content: string,
-    relativePath: string
-  ): Promise<UploadResult> {
+  async uploadContent(content: string, relativePath: string): Promise<UploadResult> {
     const oneDrivePath = this.buildOneDrivePath(relativePath);
 
     try {
@@ -114,13 +108,10 @@ export class OneDriveClient {
    */
   async deleteFile(itemId: string): Promise<boolean> {
     try {
-      const response = await fetch(
-        `${GRAPH_BASE}/me/drive/items/${itemId}`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${this.accessToken}` },
-        }
-      );
+      const response = await fetch(`${GRAPH_BASE}/me/drive/items/${itemId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      });
       return response.ok || response.status === 404;
     } catch {
       return false;
@@ -166,10 +157,7 @@ export class OneDriveClient {
     }
   }
 
-  private async uploadSmallFile(
-    localPath: string,
-    oneDrivePath: string
-  ): Promise<UploadResult> {
+  private async uploadSmallFile(localPath: string, oneDrivePath: string): Promise<UploadResult> {
     const content = fs.readFileSync(localPath);
     const encodedPath = this.encodePath(oneDrivePath);
     const url = `${GRAPH_BASE}/me/drive/root:/${encodedPath}:/content`;

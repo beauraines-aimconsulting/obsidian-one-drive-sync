@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import { RuleLoader } from '../../rules/RuleLoader.js';
 import { validateRulesConfig } from '../../rules/validateRulesConfig.js';
-import { resolveContainedPath, sendApiJson } from '../security.js';
+import { resolveVaultPath, sendApiJson } from '../security.js';
 import type { RouteHandler } from '../types.js';
 
 interface RulesTestRequestBody {
@@ -46,7 +46,10 @@ export const postRulesTest: RouteHandler = async (_request, response, context) =
         return;
       }
 
-      const engine = new RuleLoader('warn').loadFromObject(validation.config, context.options.vaultPath);
+      const engine = new RuleLoader('warn').loadFromObject(
+        validation.config,
+        context.options.vaultPath
+      );
       const result = await context.options.publicationService.evaluateFileWithRuleEngine(
         filepath,
         content,
@@ -65,7 +68,10 @@ export const postRulesTest: RouteHandler = async (_request, response, context) =
       return;
     }
 
-    if (error instanceof Error && (error.message.includes('Path escapes') || error.message.includes('Path must be relative'))) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('Path escapes') || error.message.includes('Path must be relative'))
+    ) {
       sendApiJson(response, 400, { error: error.message });
       return;
     }
@@ -84,6 +90,6 @@ function normalizeEvaluationPath(value: string | undefined): string | undefined 
 }
 
 async function readVaultFile(vaultPath: string, relativePath: string): Promise<string> {
-  const absolutePath = resolveContainedPath(vaultPath, relativePath);
+  const absolutePath = resolveVaultPath(vaultPath, relativePath);
   return fs.readFile(absolutePath, 'utf-8');
 }

@@ -15,12 +15,7 @@ export interface TokenResult {
 }
 
 export type DeviceCodeFlowState =
-  | 'idle'
-  | 'pending'
-  | 'succeeded'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled';
+  'idle' | 'pending' | 'succeeded' | 'failed' | 'timed_out' | 'cancelled';
 
 export interface DeviceCodeFlowStartResult {
   userCode: string;

@@ -8,8 +8,7 @@ const REQUIRED_PERMISSIONS: AdminConsentRequestData['permissions'] = [
   {
     scope: 'User.Read',
     type: 'Delegated',
-    justification:
-      'Basic sign-in and user profile reading. Required for authentication.',
+    justification: 'Basic sign-in and user profile reading. Required for authentication.',
     required: true,
   },
   {
@@ -77,25 +76,17 @@ export class AdminConsentRequest {
     }
 
     lines.push('Scope of Access:');
-    lines.push(
-      '  • User-delegated only — accesses ONLY the signed-in user\'s OneDrive'
-    );
+    lines.push("  • User-delegated only — accesses ONLY the signed-in user's OneDrive");
     lines.push('  • No application-level (daemon) permissions requested');
-    lines.push(
-      '  • No access to other users\' files, email, calendar, or Teams'
-    );
+    lines.push("  • No access to other users' files, email, calendar, or Teams");
     lines.push('');
     lines.push('Admin Consent URL:');
     lines.push(`  ${data.adminConsentUrl}`);
     lines.push('');
     lines.push('───────────────────────────────────────────────────────────────');
-    lines.push(
-      'To grant consent, an Azure AD admin can visit the URL above,'
-    );
+    lines.push('To grant consent, an Azure AD admin can visit the URL above,');
     lines.push('or navigate to:');
-    lines.push(
-      '  Azure Portal → Azure Active Directory → Enterprise Applications'
-    );
+    lines.push('  Azure Portal → Azure Active Directory → Enterprise Applications');
     lines.push(`  → Search for Client ID: ${data.clientId}`);
     lines.push('  → Permissions → Grant admin consent');
     lines.push('───────────────────────────────────────────────────────────────');

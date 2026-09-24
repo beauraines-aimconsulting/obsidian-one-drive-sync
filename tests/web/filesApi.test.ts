@@ -177,6 +177,23 @@ describe('files and rules test APIs', () => {
     );
   });
 
+  it('evaluates a note selected through a vault symlink', async () => {
+    const { baseUrl } = await startServer();
+
+    const response = await fetch(`${baseUrl}/api/rules/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: baseUrl,
+      },
+      body: JSON.stringify({ filepath: 'linked/secret.md' }),
+    });
+    const payload = (await response.json()) as { eligible: boolean };
+
+    expect(response.status).toBe(200);
+    expect(payload.eligible).toBe(false);
+  });
+
   it('evaluates a note against candidate rules without mutating the live engine', async () => {
     const { baseUrl, publicationService } = await startServer();
     const beforeRuleCount = publicationService.getRuleCount();
@@ -327,28 +344,29 @@ describe('files and rules test APIs', () => {
     ]);
   });
 
-  it('returns raw note content for previews and rejects traversal attempts', async () => {
+  it('returns raw note content through vault symlinks and rejects traversal attempts', async () => {
     const { baseUrl } = await startServer();
 
-    const [previewResponse, traversalResponse, absoluteResponse, symlinkResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/files/Eligible/keep.md`),
-      fetch(`${baseUrl}/api/files/..%2F..%2Fetc%2Fpasswd`),
-      fetch(`${baseUrl}/api/files/%2Fetc%2Fpasswd`),
-      fetch(`${baseUrl}/api/files/linked/secret.md`),
-    ]);
+    const [previewResponse, symlinkResponse, traversalResponse, absoluteResponse] =
+      await Promise.all([
+        fetch(`${baseUrl}/api/files/Eligible/keep.md`),
+        fetch(`${baseUrl}/api/files/linked/secret.md`),
+        fetch(`${baseUrl}/api/files/..%2F..%2Fetc%2Fpasswd`),
+        fetch(`${baseUrl}/api/files/%2Fetc%2Fpasswd`),
+      ]);
 
     expect(previewResponse.status).toBe(200);
     expect(previewResponse.headers.get('content-type')).toContain('text/plain');
     expect(await previewResponse.text()).toContain('# Keep');
+
+    expect(symlinkResponse.status).toBe(200);
+    expect(await symlinkResponse.text()).toContain('# secret');
 
     expect(traversalResponse.status).toBe(400);
     await expect(traversalResponse.json()).resolves.toEqual({ error: 'Path escapes the vault root' });
 
     expect(absoluteResponse.status).toBe(400);
     await expect(absoluteResponse.json()).resolves.toEqual({ error: 'Path must be relative to the vault' });
-
-    expect(symlinkResponse.status).toBe(400);
-    await expect(symlinkResponse.json()).resolves.toEqual({ error: 'Path escapes the vault root' });
   });
 
   it('returns 404 for a missing preview file', async () => {

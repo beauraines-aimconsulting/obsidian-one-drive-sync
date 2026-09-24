@@ -115,9 +115,8 @@ export class SyncRunManager {
       return this.cloneRecord(record);
     }
 
-    const started = this.options.coordinator.startFullSync(
-      { cancelled: false },
-      (signal) => this.executeRecord(record, normalized, signal).then(() => undefined)
+    const started = this.options.coordinator.startFullSync({ cancelled: false }, (signal) =>
+      this.executeRecord(record, normalized, signal).then(() => undefined)
     );
     if (!started) {
       this.deleteRecord(record.runId);
@@ -167,9 +166,8 @@ export class SyncRunManager {
     const normalized = this.normalizeOptions(request);
     const record = this.createRecord('startup', normalized);
 
-    const started = this.options.coordinator.startFullSync(
-      { cancelled: false },
-      (signal) => this.executeRecord(record, normalized, signal).then(() => undefined)
+    const started = this.options.coordinator.startFullSync({ cancelled: false }, (signal) =>
+      this.executeRecord(record, normalized, signal).then(() => undefined)
     );
     if (!started) {
       this.deleteRecord(record.runId);

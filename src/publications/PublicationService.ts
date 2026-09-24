@@ -91,18 +91,13 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
     precomputedHash?: string,
     parseError?: FrontmatterParseError
   ): Promise<EligibilityResult> {
-    return this.evaluateFrontmatterWithEngine(
-      filepath,
-      frontmatter,
-      this.ruleEngine,
-      {
-        content,
-        contentHash: precomputedHash,
-        parseError,
-        useCache: this.enableCache,
-        emitEvent: true,
-      }
-    );
+    return this.evaluateFrontmatterWithEngine(filepath, frontmatter, this.ruleEngine, {
+      content,
+      contentHash: precomputedHash,
+      parseError,
+      useCache: this.enableCache,
+      emitEvent: true,
+    });
   }
 
   private async evaluateFileWithEngine(
@@ -326,10 +321,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   /**
    * Get cached result for a file.
    */
-  private getCachedResult(
-    filepath: string,
-    contentHash: string
-  ): EligibilityResult | undefined {
+  private getCachedResult(filepath: string, contentHash: string): EligibilityResult | undefined {
     const entry = this.cache.get(filepath);
     if (entry && entry.contentHash === contentHash) {
       return entry.result;
@@ -344,11 +336,7 @@ export class PublicationService extends EventEmitter<EligibilityResult> {
   /**
    * Cache an evaluation result.
    */
-  private cacheResult(
-    filepath: string,
-    result: EligibilityResult,
-    contentHash: string
-  ): void {
+  private cacheResult(filepath: string, result: EligibilityResult, contentHash: string): void {
     // Implement LRU cache eviction if necessary
     if (this.cache.size >= this.cacheSize) {
       // Remove oldest entry

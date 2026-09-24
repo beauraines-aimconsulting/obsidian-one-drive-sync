@@ -158,11 +158,7 @@ export class SyncStateStore {
   }
 
   private save(): void {
-    fs.writeFileSync(
-      this.stateFilePath,
-      JSON.stringify(this.state, null, 2),
-      { mode: 0o600 }
-    );
+    fs.writeFileSync(this.stateFilePath, JSON.stringify(this.state, null, 2), { mode: 0o600 });
   }
 
   private createEmptyState(): SyncState {

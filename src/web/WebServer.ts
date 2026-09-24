@@ -94,10 +94,7 @@ export class WebServer {
     return (address as AddressInfo).port;
   }
 
-  private async handleRequest(
-    request: IncomingMessage,
-    response: ServerResponse
-  ): Promise<void> {
+  private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
     if (this.requiresPageToken(requestUrl.pathname)) {
       if (!isAuthorizedRequest(request, requestUrl, this.options.token)) {

@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { EligibilityResult } from '../../publications/types.js';
 import { walkMarkdown } from '../../vault/walkMarkdown.js';
-import { resolveContainedPath, sendApiJson } from '../security.js';
+import { resolveVaultPath, sendApiJson } from '../security.js';
 import type { RouteHandler } from '../types.js';
 
 const DEFAULT_LIMIT = 100;
@@ -51,7 +51,9 @@ export const getFiles: RouteHandler = async (_request, response, context) => {
   const allFiles = walkMarkdown(context.options.vaultPath, {
     ignorePatterns: context.options.ignorePatterns,
   })
-    .map((absolutePath) => path.relative(context.options.vaultPath, absolutePath).replace(/\\/g, '/'))
+    .map((absolutePath) =>
+      path.relative(context.options.vaultPath, absolutePath).replace(/\\/g, '/')
+    )
     .filter((filepath) => (query.length > 0 ? filepath.toLowerCase().includes(query) : true))
     .sort((left, right) => left.localeCompare(right));
 
@@ -97,7 +99,7 @@ export const getFileContent: RouteHandler = async (_request, response, context) 
   }
 
   try {
-    const absolutePath = resolveContainedPath(context.options.vaultPath, relativePath);
+    const absolutePath = resolveVaultPath(context.options.vaultPath, relativePath);
     const stats = await fs.stat(absolutePath);
     if (!stats.isFile()) {
       sendApiJson(response, 404, { error: 'File not found' });

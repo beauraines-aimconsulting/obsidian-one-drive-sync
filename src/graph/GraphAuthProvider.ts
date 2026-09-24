@@ -96,9 +96,7 @@ export class GraphAuthProvider {
     };
 
     try {
-      const result = await this.msalClient.acquireTokenByDeviceCode(
-        deviceCodeRequest
-      );
+      const result = await this.msalClient.acquireTokenByDeviceCode(deviceCodeRequest);
 
       if (!result) {
         throw new Error('Authentication failed: no result returned');
@@ -112,8 +110,7 @@ export class GraphAuthProvider {
         scopes: result.scopes,
       };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Authentication failed: ${message}`);
     }
   }
@@ -311,7 +308,10 @@ export class GraphAuthProvider {
     this.completeDeviceCodeFlow(pending.id, state);
   }
 
-  private completeDeviceCodeFlow(flowId: number, state: Exclude<DeviceCodeFlowState, 'idle'>): void {
+  private completeDeviceCodeFlow(
+    flowId: number,
+    state: Exclude<DeviceCodeFlowState, 'idle'>
+  ): void {
     const pending = this.pendingDeviceCodeFlow;
     if (!pending || pending.id !== flowId) {
       return;

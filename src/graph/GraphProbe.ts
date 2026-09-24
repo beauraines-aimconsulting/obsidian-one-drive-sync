@@ -19,9 +19,7 @@ export class GraphProbe {
   /**
    * Run all probe checks and return a full report.
    */
-  async runAll(
-    onDeviceCode?: (message: string) => void
-  ): Promise<ProbeReport> {
+  async runAll(onDeviceCode?: (message: string) => void): Promise<ProbeReport> {
     const report: ProbeReport = {
       timestamp: new Date().toISOString(),
       authentication: {
@@ -48,8 +46,7 @@ export class GraphProbe {
       report.authentication.scopes = token.scopes;
     } catch (error) {
       report.authentication.success = false;
-      report.authentication.error =
-        error instanceof Error ? error.message : String(error);
+      report.authentication.error = error instanceof Error ? error.message : String(error);
       report.summary.adminConsentRequired =
         report.authentication.error.includes('AADSTS65001') ||
         report.authentication.error.includes('consent');
@@ -76,10 +73,7 @@ export class GraphProbe {
         report.summary.passed.push(check.name);
       } else {
         report.summary.failed.push(check.name);
-        if (
-          result.statusCode === 403 ||
-          result.error?.includes('Authorization_RequestDenied')
-        ) {
+        if (result.statusCode === 403 || result.error?.includes('Authorization_RequestDenied')) {
           report.summary.adminConsentRequired = true;
         }
       }
@@ -100,11 +94,7 @@ export class GraphProbe {
    * Test GET /me/drive/root — OneDrive root access (Files.ReadWrite).
    */
   async probeOneDriveRoot(accessToken: string): Promise<ProbeResult> {
-    return this.fetchEndpoint(
-      accessToken,
-      '/me/drive/root',
-      'OneDrive Root (Files.ReadWrite)'
-    );
+    return this.fetchEndpoint(accessToken, '/me/drive/root', 'OneDrive Root (Files.ReadWrite)');
   }
 
   /**
@@ -112,8 +102,7 @@ export class GraphProbe {
    * Creates and immediately deletes a probe file.
    */
   async probeOneDriveWrite(accessToken: string): Promise<ProbeResult> {
-    const probePath =
-      '/me/drive/root:/obsidian-sync-probe-test.txt:/content';
+    const probePath = '/me/drive/root:/obsidian-sync-probe-test.txt:/content';
     const endpoint = `${GRAPH_BASE}${probePath}`;
 
     try {
@@ -137,10 +126,7 @@ export class GraphProbe {
         };
       }
 
-      const writeData = (await writeResponse.json()) as Record<
-        string,
-        unknown
-      >;
+      const writeData = (await writeResponse.json()) as Record<string, unknown>;
 
       // Clean up: delete the probe file
       const itemId = writeData.id as string;

@@ -124,7 +124,8 @@ function resolveSchedule(
   env: EnvSource,
   fromFile: ScheduleConfig | undefined
 ): { value: ScheduleConfig | undefined; source?: ConfigValueSource } {
-  const specSource = envValue(env.SYNC_SCHEDULE) !== undefined ? 'env' : fromFile?.spec ? 'file' : undefined;
+  const specSource =
+    envValue(env.SYNC_SCHEDULE) !== undefined ? 'env' : fromFile?.spec ? 'file' : undefined;
   const spec = env.SYNC_SCHEDULE?.trim() || fromFile?.spec;
   if (!spec) return { value: undefined };
 
@@ -285,16 +286,17 @@ export class ConfigManager {
     sources.webEnabled = webEnabled.source;
 
     const webPortFromEnv = envValue(env.WEB_PORT);
-    const webPort = webPortFromEnv !== undefined || configFromFile.webPort !== undefined
-      ? resolveInteger(
-          'WEB_PORT',
-          healthPort.value,
-          configFromFile.webPort,
-          webPortFromEnv,
-          (value) => value >= 1 && value <= 65535,
-          '{name} must be an integer between 1 and 65535'
-        )
-      : { value: healthPort.value, source: healthPort.source };
+    const webPort =
+      webPortFromEnv !== undefined || configFromFile.webPort !== undefined
+        ? resolveInteger(
+            'WEB_PORT',
+            healthPort.value,
+            configFromFile.webPort,
+            webPortFromEnv,
+            (value) => value >= 1 && value <= 65535,
+            '{name} must be an integer between 1 and 65535'
+          )
+        : { value: healthPort.value, source: healthPort.source };
     sources.webPort = webPort.source;
 
     const webBindAddress = resolveValue(

@@ -79,9 +79,7 @@ export class SyncService {
   /**
    * Run a full sync: evaluate all files, upload changed ones, remove stale ones.
    */
-  async sync(
-    onProgress?: (message: string) => void
-  ): Promise<SyncResult> {
+  async sync(onProgress?: (message: string) => void): Promise<SyncResult> {
     return this.syncWithOverrides({}, onProgress);
   }
 
@@ -117,7 +115,10 @@ export class SyncService {
 
     // Scan vault for markdown files
     log('📂 Scanning vault...');
-    const files = await this.walkMarkdown(executionOptions.vaultPath, executionOptions.ignorePatterns);
+    const files = await this.walkMarkdown(
+      executionOptions.vaultPath,
+      executionOptions.ignorePatterns
+    );
     log(`   Found ${files.length} markdown files`);
 
     // Evaluate each file
@@ -141,7 +142,8 @@ export class SyncService {
 
     // Upload changed files
     for (const { relativePath, content } of eligibleFiles) {
-      const changed = executionOptions.forceSync || this.syncState.hasChanged(relativePath, content);
+      const changed =
+        executionOptions.forceSync || this.syncState.hasChanged(relativePath, content);
 
       if (!changed) {
         result.skipped.push(relativePath);
@@ -311,7 +313,10 @@ export class SyncService {
     });
   }
 
-  private async walkMarkdown(dir: string, ignorePatterns = this.options.ignorePatterns): Promise<string[]> {
+  private async walkMarkdown(
+    dir: string,
+    ignorePatterns = this.options.ignorePatterns
+  ): Promise<string[]> {
     return walkMarkdown(dir, { ignorePatterns });
   }
 }

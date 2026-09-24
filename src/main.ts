@@ -199,7 +199,8 @@ function buildSyncService(
 ): SyncService | null {
   const clientId = config.clientId ?? process.env.GRAPH_CLIENT_ID;
   const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID ?? 'common';
-  const provider = authProvider ?? (clientId ? new GraphAuthProvider({ clientId, tenantId }) : null);
+  const provider =
+    authProvider ?? (clientId ? new GraphAuthProvider({ clientId, tenantId }) : null);
   if (!provider) {
     console.error('❌ Sync requires a Graph API client ID.');
     console.error('   Set GRAPH_CLIENT_ID or add "clientId" to your config.json.');
@@ -363,9 +364,7 @@ async function main(): Promise<number> {
   let syncService: SyncService | null = null;
   const clientId = config.clientId ?? process.env.GRAPH_CLIENT_ID;
   const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID ?? 'common';
-  const authProvider = clientId
-    ? new GraphAuthProvider({ clientId, tenantId })
-    : undefined;
+  const authProvider = clientId ? new GraphAuthProvider({ clientId, tenantId }) : undefined;
   if (options.sync) {
     if (!authProvider) {
       console.error('❌ Sync requires a Graph API client ID.');
@@ -539,10 +538,7 @@ async function main(): Promise<number> {
         log('');
 
         try {
-          const result = await syncService.syncWithOverrides(
-            { dryRun, forceSync: force },
-            log
-          );
+          const result = await syncService.syncWithOverrides({ dryRun, forceSync: force }, log);
 
           log('');
           log('────────────────────────────────────────');
