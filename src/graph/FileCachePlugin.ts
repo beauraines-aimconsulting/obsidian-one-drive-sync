@@ -65,11 +65,12 @@ export class FileCachePlugin implements ICachePlugin {
         AccessToken?: Record<string, Record<string, unknown>>;
       };
       const entries = Object.values(parsed.AccessToken ?? {});
-      const expiresAt = entries
-        .map((entry) => this.readExpiry(entry))
-        .filter((value): value is string => value !== null)
-        .sort()
-        .at(-1) ?? null;
+      const expiresAt =
+        entries
+          .map((entry) => this.readExpiry(entry))
+          .filter((value): value is string => value !== null)
+          .sort()
+          .at(-1) ?? null;
 
       return {
         hasCachedToken: true,

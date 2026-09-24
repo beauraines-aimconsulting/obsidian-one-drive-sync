@@ -61,10 +61,7 @@ export function constantTimeTokenMatch(expectedToken: string, providedToken: str
   return timingSafeEqual(expectedHash, providedHash);
 }
 
-export function readAccessToken(
-  request: IncomingMessage,
-  requestUrl: URL
-): string | undefined {
+export function readAccessToken(request: IncomingMessage, requestUrl: URL): string | undefined {
   const header = request.headers.authorization;
   if (header) {
     const [scheme, value] = header.split(/\s+/, 2);
@@ -161,7 +158,12 @@ export async function applyApiSecurity(
   }
 
   const fetchSite = request.headers['sec-fetch-site']?.trim().toLowerCase();
-  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'same-site' && fetchSite !== 'none') {
+  if (
+    fetchSite &&
+    fetchSite !== 'same-origin' &&
+    fetchSite !== 'same-site' &&
+    fetchSite !== 'none'
+  ) {
     sendApiError(response, 403, 'Cross-site requests are not allowed');
     return null;
   }
@@ -218,4 +220,22 @@ export function resolveContainedPath(rootPath: string, relativePath: string): st
   }
 
   return realCandidatePath;
+}
+
+/**
+ * Resolves a path within the configured logical vault. Vault-contained
+ * symlinks are allowed because the scanner intentionally follows them.
+ */
+export function resolveVaultPath(vaultPath: string, relativePath: string): string {
+  if (path.isAbsolute(relativePath)) {
+    throw new Error('Path must be relative to the vault');
+  }
+
+  const resolvedVaultPath = path.resolve(vaultPath);
+  const candidatePath = path.resolve(resolvedVaultPath, relativePath);
+  if (!isPathInside(resolvedVaultPath, candidatePath)) {
+    throw new Error('Path escapes the vault root');
+  }
+
+  return candidatePath;
 }

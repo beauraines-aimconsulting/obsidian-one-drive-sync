@@ -44,11 +44,7 @@ export class Logger {
     return `${timestamp} ${level.toUpperCase()}${contextStr} ${message}${contextData}`;
   }
 
-  private log(
-    level: LogLevel,
-    message: string,
-    context?: Record<string, unknown>
-  ): void {
+  private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
     if (!this.shouldLog(level)) {
       return;
     }

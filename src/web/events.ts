@@ -40,11 +40,7 @@ export interface ScheduleRunEvent {
 }
 
 export type WebEvent =
-  | FileEvaluatedEvent
-  | SyncProgressEvent
-  | SyncCompleteEvent
-  | RulesUpdatedEvent
-  | ScheduleRunEvent;
+  FileEvaluatedEvent | SyncProgressEvent | SyncCompleteEvent | RulesUpdatedEvent | ScheduleRunEvent;
 
 export type WebEventListener = (event: WebEvent) => void;
 

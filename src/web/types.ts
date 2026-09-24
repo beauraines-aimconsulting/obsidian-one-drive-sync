@@ -10,7 +10,10 @@ import type { WebEventStream } from './events.js';
 import type { SyncRunManager } from './syncRuns.js';
 
 export interface WebAuthProvider {
-  startDeviceCodeFlow(options?: { scopes?: string[]; onSuccess?: () => void }): Promise<DeviceCodeFlowStartResult>;
+  startDeviceCodeFlow(options?: {
+    scopes?: string[];
+    onSuccess?: () => void;
+  }): Promise<DeviceCodeFlowStartResult>;
   getAuthStatus(): AuthStatusSnapshot;
   logout(): void;
 }

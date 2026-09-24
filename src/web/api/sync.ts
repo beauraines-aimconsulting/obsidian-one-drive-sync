@@ -33,7 +33,11 @@ function readTriggerBody(body: unknown): SyncTriggerBody {
 export const postSync: RouteHandler = async (_request, response, context) => {
   const syncRuns = context.options.syncRuns;
   if (!syncRuns || !context.options.syncService) {
-    sendApiError(response, 503, 'Sync is not enabled; restart with --sync to allow web-triggered runs');
+    sendApiError(
+      response,
+      503,
+      'Sync is not enabled; restart with --sync to allow web-triggered runs'
+    );
     return;
   }
 
