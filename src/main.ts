@@ -194,21 +194,21 @@ async function runProbe(config: import('./config/types.js').AppConfig): Promise<
 function buildSyncService(
   config: import('./config/types.js').AppConfig,
   publicationService: PublicationService,
-  options: CliOptions
+  options: CliOptions,
+  authProvider?: GraphAuthProvider
 ): SyncService | null {
   const clientId = config.clientId ?? process.env.GRAPH_CLIENT_ID;
   const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID ?? 'common';
-
-  if (!clientId) {
+  const provider = authProvider ?? (clientId ? new GraphAuthProvider({ clientId, tenantId }) : null);
+  if (!provider) {
     console.error('❌ Sync requires a Graph API client ID.');
     console.error('   Set GRAPH_CLIENT_ID or add "clientId" to your config.json.');
     return null;
   }
 
-  const authProvider = new GraphAuthProvider({ clientId, tenantId });
   const syncState = new SyncStateStore();
 
-  return new SyncService(publicationService, authProvider, syncState, {
+  return new SyncService(publicationService, provider, syncState, {
     vaultPath: config.vaultPath,
     targetFolder: config.oneDriveFolder,
     forceSync: options.forceSync,
@@ -361,9 +361,18 @@ async function main(): Promise<number> {
   // Watch and schedule modes optionally upload; without --sync they only
   // evaluate rules.
   let syncService: SyncService | null = null;
+  const clientId = config.clientId ?? process.env.GRAPH_CLIENT_ID;
+  const tenantId = config.tenantId ?? process.env.GRAPH_TENANT_ID ?? 'common';
+  const authProvider = clientId
+    ? new GraphAuthProvider({ clientId, tenantId })
+    : undefined;
   if (options.sync) {
-    syncService = buildSyncService(config, publicationService, options);
-    if (!syncService) return 1;
+    if (!authProvider) {
+      console.error('❌ Sync requires a Graph API client ID.');
+      console.error('   Set GRAPH_CLIENT_ID or add "clientId" to your config.json.');
+      return 1;
+    }
+    syncService = buildSyncService(config, publicationService, options, authProvider);
 
     // With a schedule, the first run is the scheduler's job — running one here
     // too would sync the whole vault twice on startup. With the web UI
@@ -371,7 +380,12 @@ async function main(): Promise<number> {
     // below so the server can start immediately and stream its progress
     // over SSE, rather than blocking startup until it finishes.
     if (!scheduleConfig && !webEnabled) {
-      const { exitCode } = await runSync(config, publicationService, options, syncService);
+      const { exitCode } = await runSync(
+        config,
+        publicationService,
+        options,
+        syncService ?? undefined
+      );
       if (exitCode !== 0) return exitCode;
       console.log('');
     }
@@ -383,9 +397,6 @@ async function main(): Promise<number> {
     usePolling: config.usePolling,
     pollInterval: config.pollInterval,
   });
-  let failureLimitReached = false;
-  let runNumber = 0;
-  const events = new WebEventStream();
   const evaluate = async (filepath: string) => {
     const relativePath = path.relative(config.vaultPath, filepath);
     if (syncService) {
@@ -434,6 +445,9 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  let failureLimitReached = false;
+  let runNumber = 0;
+  const events = new WebEventStream();
   const coordinator = new SyncCoordinator({
     processFile: evaluate,
     logger: {
@@ -604,6 +618,7 @@ async function main(): Promise<number> {
         ignorePatterns: config.ignorePatterns,
         publicationService,
         ...(syncService ? { syncService } : {}),
+        ...(authProvider ? { authProvider } : {}),
         ...(scheduler ? { scheduler } : {}),
         events,
         ...(syncRuns ? { syncRuns } : {}),

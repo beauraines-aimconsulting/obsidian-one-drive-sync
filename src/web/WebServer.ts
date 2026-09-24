@@ -10,6 +10,7 @@ import { postRulesTest } from './api/ruleTest.js';
 import { getStatus } from './api/status.js';
 import { getEvents } from './api/events.js';
 import { getSyncRun, postSync } from './api/sync.js';
+import { getAuthStatus, postAuthDeviceCode, postAuthLogout } from './api/auth.js';
 import {
   applyApiSecurity,
   isAuthorizedRequest,
@@ -30,6 +31,9 @@ export class WebServer {
       writeHealthResponse(response, this.options.healthStatus());
     });
     this.router.add('GET', '/api/status', getStatus);
+    this.router.add('GET', '/api/auth/status', getAuthStatus);
+    this.router.add('POST', '/api/auth/device-code', postAuthDeviceCode);
+    this.router.add('POST', '/api/auth/logout', postAuthLogout);
     this.router.add('GET', '/api/events', getEvents);
     this.router.add('GET', '/api/config', getConfig);
     this.router.add('GET', '/api/rules', getRules);
