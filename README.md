@@ -411,6 +411,21 @@ npm start -- --migrate-rules --yes    # writes it, backing up to config.json.v1.
 The file is replaced atomically, and sections the rule engine does not own — such
 as `config` — are carried across untouched.
 
+When running in Docker, migration requires a writable config directory because the
+atomic replacement creates a sibling temporary file and a `.v1.bak` backup. Keep
+the normal sync mount read-only, and run migration separately against a writable
+host directory:
+
+```bash
+docker run --rm \
+  -v "/absolute/path/to/config-dir:/config:rw" \
+  obsidian-one-drive-sync:local node dist/main.js --migrate-rules --yes
+```
+
+The directory must be writable by the container user (`node`, UID 1000 in the
+image). The migrated file and its `rules.json.v1.bak` backup remain in the host
+directory.
+
 #### Behaviour changes in the tag rules
 
 Two changes affect notes that were previously eligible:
@@ -1095,6 +1110,10 @@ exiting, so `docker stop` and orchestrator rollouts do not cut work off mid-eval
 - **Config file not applied**: the rules file must be mounted at `/config/rules.json` and
   contain a top-level `config` object. `HOST_RULES_CONFIG_PATH` must point at the file itself,
   not its parent directory.
+- **Rules migration fails with `EACCES`**: the normal Docker rules mount is read-only.
+  Run migration with the parent config directory mounted at `/config:rw`; the command
+  needs permission to create the atomic temp file and `.v1.bak`. Do not make the
+  normal sync mount writable unless you intend to allow the container to change rules.
 - **Health/Web UI port already in use**: set `HOST_WEB_PORT` in `.env` to change the published
   Compose port, or `HEALTH_PORT` / `WEB_PORT` when running the process directly.
 - **Re-prompted for a device code every run**: the `sync-state` volume is missing, so the token

@@ -109,6 +109,22 @@ describe('migrateRulesFile', () => {
   });
 
   describe('refusals', () => {
+    it('reports Docker mount permissions before writing', () => {
+      write(v1Config);
+      fs.chmodSync(directory, 0o555);
+
+      try {
+        const code = migrateRulesFile(configPath, { confirm: true, log });
+
+        expect(code).toBe(1);
+        expect(logged()).toContain('writable config directory');
+        expect(logged()).toContain('mount the host config directory at /config:rw');
+        expect(fs.existsSync(`${configPath}.v1.bak`)).toBe(false);
+      } finally {
+        fs.chmodSync(directory, 0o755);
+      }
+    });
+
     it('fails when the file does not exist', () => {
       const code = migrateRulesFile(path.join(directory, 'nope.json'), { confirm: true, log });
 
