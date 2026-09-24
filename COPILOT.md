@@ -5,6 +5,7 @@
 - Create a fresh branch from `origin/main` for each issue.
 - Keep PRs small and focused: one issue = one PR.
 - Rebase or cherry-pick onto current `main` before opening or updating a PR so the PR only shows its own changes.
+- After validating a completed change, commit it, push its branch, and open a PR before reporting completion unless I explicitly say not to.
 - Do NOT force push (`git push -f`) unless explicitly told to. Multiple commits in a PR are fine — PRs are squash-merged.
 - Link the issue in the PR body with `Resolves #<issue>`.
 - Update the GitHub issue task list/checklist as work progresses.
