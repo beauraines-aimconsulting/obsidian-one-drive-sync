@@ -46,6 +46,40 @@ test('triggers a dry-run sync and streams live log updates over SSE', async ({ p
   );
 });
 
+test('keeps the live log in view beside the status actions on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 863 });
+  await page.goto('/status.html');
+
+  const layout = await page.evaluate(() => {
+    const actionGrid = document.querySelector('.status-action-grid');
+    const syncCard = actionGrid?.querySelector(':scope > .card');
+    const authCard = actionGrid?.querySelector(':scope > .card:nth-child(2)');
+    const liveLogCard = document.querySelector('.live-log-card');
+    const liveLog = document.querySelector('#live-log-output');
+    if (!actionGrid || !syncCard || !authCard || !liveLogCard || !liveLog) {
+      throw new Error('Status layout elements are missing');
+    }
+
+    const actionGridRect = actionGrid.getBoundingClientRect();
+    const syncRect = syncCard.getBoundingClientRect();
+    const authRect = authCard.getBoundingClientRect();
+    const liveLogCardRect = liveLogCard.getBoundingClientRect();
+    const liveLogRect = liveLog.getBoundingClientRect();
+    return {
+      actionGridBottom: actionGridRect.bottom,
+      syncRight: syncRect.right,
+      authLeft: authRect.left,
+      liveLogCardTop: liveLogCardRect.top,
+      liveLogTop: liveLogRect.top,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layout.syncRight).toBeLessThanOrEqual(layout.authLeft + 1);
+  expect(layout.liveLogTop).toBeLessThan(layout.viewportHeight);
+  expect(layout.actionGridBottom).toBeLessThan(layout.viewportHeight);
+});
+
 test('keeps the live log bounded and only follows output near the bottom', async ({ page }) => {
   await page.goto('/status.html');
 

@@ -8,6 +8,8 @@
 - Rebase or cherry-pick onto current `main` before opening or updating a PR so the PR only shows its own changes.
 - After validation, commit the complete issue change with a clear conventional commit message and include the required Copilot co-author trailer.
 - Push the issue branch and open a pull request unless I explicitly ask to stop before publication.
+- Do not finish with uncommitted changes or leave the work only on a local branch: publication means commit, push, and open the PR after validation.
+- If the task starts with existing uncommitted changes that belong to the issue, carry them onto the focused branch, validate them, commit them, push the branch, and open the PR.
 - The PR title and body must describe the change, include validation results, and link the issue with `Resolves #<issue>`.
 - Do NOT force push (`git push -f`) unless explicitly told to. Multiple commits in a PR are fine — PRs are squash-merged.
 - Update the GitHub issue task list/checklist as work progresses.
