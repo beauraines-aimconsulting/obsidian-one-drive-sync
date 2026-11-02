@@ -3,6 +3,7 @@ services:
     build:
       context: .
     image: obsidian-one-drive-sync:local
+    restart: unless-stopped
     init: true
     environment:
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:?Set GRAPH_CLIENT_ID in .env}
