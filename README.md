@@ -1074,6 +1074,11 @@ docker compose up -d
 docker compose logs -f
 ```
 
+The `obsidian-sync` service uses `restart: unless-stopped`, so Docker starts it again when the
+Docker Engine starts after a host reboot. Configure Docker Desktop or the Docker Engine service
+to start at boot as well. If you intentionally stop the service, it stays stopped; `docker
+compose down` removes the container, so run `docker compose up -d` again to recreate it.
+
 To run a one-shot sync that exits when finished, omit `--watch`:
 
 ```bash
